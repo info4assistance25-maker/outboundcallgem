@@ -1,10 +1,6 @@
 {
-  "version": 2,
-  "functions": {
-    "api/login.js": { "runtime": "nodejs18.x" }
-  },
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/(.*)",     "dest": "/index.html" }
-  ]
+  "name": "campagne-out",
+  "version": "1.0.0",
+  "private": true,
+  "engines": { "node": "18.x" }
 }
