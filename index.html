@@ -385,7 +385,11 @@ footer{background:var(--nav-bg);padding:28px 40px}
         <div class="format-hint">
           <div class="format-hint-hd">Formato — 2 colonne</div>
           <pre>Mario Rossi,+393331234567
-Giulia Bianchi;0612345678</pre>
+Giulia Bianchi,0612345678</pre>
+          <div style="margin-top:8px;padding:7px 10px;background:var(--teal-lt);border:1px solid rgba(74,200,212,0.3);border-radius:6px;font-size:11px;color:var(--teal-dk);line-height:1.6">
+            📞 <strong>Formato numero:</strong> usa <code>+39XXXXXXXXXX</code> oppure <code>0XXXXXXXXX</code><br>
+            Separatore colonne: virgola <code>,</code> o punto e virgola <code>;</code>
+          </div>
           <div class="format-actions">
             <a class="dl-btn" onclick="downloadTemplate('csv')" href="#">
               <svg viewBox="0 0 16 16"><path d="M8 2v8M4 6l4 4 4-4"/><path d="M2 12h12"/></svg>Template CSV
@@ -407,6 +411,10 @@ Giulia Bianchi;0612345678</pre>
           <div class="format-hint-hd">Formato — 2 colonne (A=Nome, B=Numero)</div>
           <pre>Colonna A: Mario Rossi
 Colonna B: +393331234567</pre>
+          <div style="margin-top:8px;padding:7px 10px;background:var(--teal-lt);border:1px solid rgba(74,200,212,0.3);border-radius:6px;font-size:11px;color:var(--teal-dk);line-height:1.6">
+            📞 <strong>Formato numero:</strong> usa <code>+39XXXXXXXXXX</code> oppure <code>0XXXXXXXXX</code><br>
+            Intestazione opzionale — viene ignorata automaticamente
+          </div>
           <div class="format-actions">
             <a class="dl-btn" onclick="downloadTemplate('xlsx')" href="#">
               <svg viewBox="0 0 16 16"><path d="M8 2v8M4 6l4 4 4-4"/><path d="M2 12h12"/></svg>Template Excel
@@ -417,6 +425,9 @@ Colonna B: +393331234567</pre>
 
       <!-- MANUALE -->
       <div class="panel" id="panel-man">
+        <div style="margin-bottom:10px;padding:7px 10px;background:var(--teal-lt);border:1px solid rgba(74,200,212,0.3);border-radius:6px;font-size:11px;color:var(--teal-dk)">
+          📞 <strong>Formato numero:</strong> <code>+39XXXXXXXXXX</code> oppure <code>0XXXXXXXXX</code>
+        </div>
         <div class="mtable">
           <div class="mhead"><span class="mth">Nome cliente</span><span class="mth">Numero</span><span></span></div>
           <div id="mrows"></div>
@@ -665,7 +676,7 @@ function handleExcel(f) {
 function addRow(){
   const c=document.getElementById('mrows');
   const row=document.createElement('div'); row.className='mrow';
-  row.innerHTML=`<input type="text" placeholder="Es. Mario Rossi" data-field="nome" oninput="syncManual()"><input type="text" placeholder="+39..." data-field="numero" oninput="syncManual(); validateNumInput(this)"><button class="del-btn" onclick="delRow(this)"><svg viewBox="0 0 16 16"><polyline points="2,4 14,4"/><path d="M5,4V2h6v2"/><path d="M6,7v5M10,7v5"/><path d="M3,4l1,10h8l1-10"/></svg></button>`;
+  row.innerHTML=`<input type="text" placeholder="Es. Mario Rossi" data-field="nome" oninput="syncManual()"><input type="text" placeholder="+39... oppure 0..." data-field="numero" oninput="syncManual(); validateNumInput(this)"><button class="del-btn" onclick="delRow(this)"><svg viewBox="0 0 16 16"><polyline points="2,4 14,4"/><path d="M5,4V2h6v2"/><path d="M6,7v5M10,7v5"/><path d="M3,4l1,10h8l1-10"/></svg></button>`;
   c.appendChild(row); row.querySelector('input').focus();
 }
 function validateNumInput(inp){
