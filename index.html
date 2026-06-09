@@ -155,6 +155,11 @@ main{max-width:720px;margin:0 auto;padding:36px 40px 80px}
 .sched-time-inner input[type=datetime-local]:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(74,200,212,0.12)}
 .sched-preview{margin-top:10px;padding:10px 14px;background:var(--teal-lt);border:1px solid rgba(74,200,212,0.3);border-radius:var(--r);font-size:13px;color:var(--teal-dk);font-weight:500;display:none;align-items:center;gap:8px}
 .sched-preview svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0}
+.countdown-box{margin-top:10px;padding:12px 16px;background:var(--warning-bg);border:1px solid rgba(217,119,6,0.25);border-radius:var(--r);font-size:13px;color:var(--warning);font-weight:600;display:none;align-items:center;gap:10px}
+.countdown-box.on{display:flex}
+.countdown-box svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0;animation:spin .7s linear infinite}
+.cancel-btn{margin-left:auto;background:transparent;border:1px solid var(--warning);border-radius:6px;padding:3px 10px;color:var(--warning);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+.cancel-btn:hover{background:var(--warning);color:white}
 
 /* LAUNCH */
 .teal-bar{height:3px;background:linear-gradient(90deg,var(--blue) 0%,var(--teal) 100%)}
@@ -341,6 +346,11 @@ Giulia Bianchi;0612345678</pre>
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           <span id="sched-preview-txt"></span>
         </div>
+        <div class="countdown-box" id="countdown-box">
+          <svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          <span id="countdown-txt">Invio in corso...</span>
+          <button class="cancel-btn" onclick="cancelScheduled()">Annulla</button>
+        </div>
       </div>
     </div>
   </div>
@@ -516,6 +526,9 @@ function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 
 // ── SCHEDULE ──
 let schedMode = 'now';
+let countdownTimer = null;
+let countdownTarget = null;
+
 function selectSched(mode) {
   schedMode = mode;
   document.getElementById('opt-now').classList.toggle('selected', mode==='now');
@@ -523,7 +536,6 @@ function selectSched(mode) {
   const wrap = document.getElementById('sched-time-wrap');
   wrap.classList.toggle('on', mode==='later');
   if (mode==='later') {
-    // Default to next hour
     const d = new Date(); d.setMinutes(0); d.setSeconds(0); d.setHours(d.getHours()+1);
     const local = new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
     const inp = document.getElementById('sched-dt');
@@ -532,6 +544,7 @@ function selectSched(mode) {
   }
   updateLaunchLabel();
 }
+
 function updateSchedPreview() {
   const val = document.getElementById('sched-dt').value;
   const el = document.getElementById('sched-preview');
@@ -542,6 +555,7 @@ function updateSchedPreview() {
   el.style.display = 'flex';
   updateLaunchLabel();
 }
+
 function updateLaunchLabel() {
   const btn = document.getElementById('launch-btn-txt');
   if (schedMode === 'later') {
@@ -557,29 +571,70 @@ function updateLaunchLabel() {
   }
 }
 
+function cancelScheduled() {
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  countdownTarget = null;
+  document.getElementById('countdown-box').classList.remove('on');
+  document.getElementById('launch-btn').disabled = false;
+  clearStatus();
+}
+
+function startCountdown(targetDate, contacts) {
+  countdownTarget = targetDate;
+  const box = document.getElementById('countdown-box');
+  const txt = document.getElementById('countdown-txt');
+  document.getElementById('launch-btn').disabled = true;
+  box.classList.add('on');
+
+  function tick() {
+    const diff = Math.max(0, Math.ceil((countdownTarget - Date.now()) / 1000));
+    if (diff <= 0) {
+      clearInterval(countdownTimer); countdownTimer = null;
+      box.classList.remove('on');
+      sendWebhook(contacts, countdownTarget.toISOString());
+      return;
+    }
+    const h = Math.floor(diff / 3600);
+    const m = Math.floor((diff % 3600) / 60);
+    const s = diff % 60;
+    const parts = [];
+    if (h > 0) parts.push(h + 'h');
+    if (m > 0 || h > 0) parts.push(m + 'm');
+    parts.push(s + 's');
+    txt.textContent = 'Invio tra ' + parts.join(' ') + ' — clicca Annulla per fermare';
+  }
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
 // ── LAUNCH ──
 async function launch() {
-  const url = 'https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo';
   const valid = contacts.filter(c => c.nome && c.numero);
   if (!valid.length) return;
 
-  let scheduledAt = null;
   if (schedMode === 'later') {
     const val = document.getElementById('sched-dt').value;
     if (!val) { showStatus('err','Seleziona data e ora di avvio'); return; }
-    scheduledAt = new Date(val).toISOString();
+    const target = new Date(val);
+    if (target <= new Date()) { showStatus('err','Seleziona un orario futuro'); return; }
+    startCountdown(target, valid);
+    return;
   }
 
-  document.getElementById('launch-btn').disabled = true;
-  showStatus('load', schedMode === 'later' ? 'Invio pianificazione a Make...' : 'Invio lista a Make...');
+  await sendWebhook(valid, null);
+}
 
+async function sendWebhook(valid, scheduledAt) {
+  const url = 'https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo';
+  document.getElementById('launch-btn').disabled = true;
+  showStatus('load', 'Invio lista a Make...');
   try {
     const payload = {
       contatti: valid,
       totale: valid.length,
       avviatoIl: new Date().toISOString(),
       scheduledAt: scheduledAt,
-      modalita: schedMode === 'later' ? 'scheduled' : 'immediate',
+      modalita: scheduledAt ? 'scheduled' : 'immediate',
       operatore: currentUser ? currentUser.nome : 'unknown',
       fonte: 'gem-landing'
     };
@@ -589,13 +644,7 @@ async function launch() {
       body: JSON.stringify(payload)
     });
     if (res.ok || res.status === 200) {
-      if (schedMode === 'later') {
-        const d = new Date(scheduledAt);
-        const fmt = d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
-        showStatus('ok', `Campagna pianificata per le ${fmt} — ${valid.length} chiamate programmate`);
-      } else {
-        showStatus('ok', `Campagna avviata — ${valid.length} chiamate inviate allo scenario Wildix`);
-      }
+      showStatus('ok', `Campagna avviata — ${valid.length} chiamate inviate allo scenario Wildix`);
     } else {
       showStatus('err', 'Errore webhook: HTTP ' + res.status);
     }
