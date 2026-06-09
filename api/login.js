@@ -1,7 +1,7 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
+const { readFileSync } = require('fs');
+const { join } = require('path');
 
-export default function handler(req, res) {
+module.exports = function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -16,7 +16,7 @@ export default function handler(req, res) {
   try {
     const raw = readFileSync(join(process.cwd(), 'users.json'), 'utf8');
     users = JSON.parse(raw);
-  } catch {
+  } catch (e) {
     return res.status(500).json({ error: 'Errore configurazione server' });
   }
 
@@ -37,4 +37,4 @@ export default function handler(req, res) {
     username: user.username,
     token: Buffer.from(`${user.username}:${Date.now()}`).toString('base64')
   });
-}
+};
