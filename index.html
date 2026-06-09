@@ -208,6 +208,14 @@ main{max-width:720px;margin:0 auto;padding:36px 40px 80px}
 .cancel-btn{margin-left:auto;background:transparent;border:1px solid var(--warning);border-radius:6px;padding:3px 10px;color:var(--warning);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans)}
 .cancel-btn:hover{background:var(--warning);color:white}
 
+/* CONCURRENCY */
+.concur-wrap{padding:0 20px 20px;border-top:1px solid var(--border)}
+.concur-label{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:10px;padding-top:16px;display:block}
+.concur-slider-row{display:flex;align-items:center;gap:14px}
+.concur-slider-row input[type=range]{flex:1;accent-color:var(--blue);height:4px;cursor:pointer}
+.concur-badge{min-width:36px;height:36px;background:var(--blue);color:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:18px;font-weight:800;flex-shrink:0}
+.concur-hint{margin-top:8px;font-size:11px;color:var(--text3)}
+
 /* LAUNCH */
 .teal-bar{height:3px;background:linear-gradient(90deg,var(--blue) 0%,var(--teal) 100%)}
 .launch-wrap{padding:20px}
@@ -471,6 +479,15 @@ Colonna B: +393331234567</pre>
           <span id="countdown-txt"></span>
           <button class="cancel-btn" onclick="cancelScheduled()">Annulla</button>
         </div>
+      </div>
+      <!-- CHIAMATE SIMULTANEE -->
+      <div class="concur-wrap">
+        <span class="concur-label">Chiamate simultanee</span>
+        <div class="concur-slider-row">
+          <input type="range" id="concur-slider" min="1" max="3" value="1" oninput="updateConcur(this.value)">
+          <div class="concur-badge" id="concur-badge">1</div>
+        </div>
+        <div class="concur-hint" id="concur-hint">1 chiamata alla volta — invio sequenziale</div>
       </div>
     </div>
   </div>
@@ -769,7 +786,7 @@ function cancelScheduled(){
   document.getElementById('launch-btn').disabled=false;
   clearStatus();
 }
-function startCountdown(target,validContacts){
+function startCountdown(target,validContacts,c){
   countdownTarget=target;
   document.getElementById('launch-btn').disabled=true;
   const box=document.getElementById('countdown-box');
@@ -777,12 +794,21 @@ function startCountdown(target,validContacts){
   box.classList.add('on');
   function tick(){
     const diff=Math.max(0,Math.ceil((countdownTarget-Date.now())/1000));
-    if(diff<=0){clearInterval(countdownTimer);countdownTimer=null;box.classList.remove('on');sendWebhook(validContacts,countdownTarget.toISOString());return;}
+    if(diff<=0){clearInterval(countdownTimer);countdownTimer=null;box.classList.remove('on');sendWebhook(validContacts,countdownTarget.toISOString(),c);return;}
     const h=Math.floor(diff/3600),m=Math.floor((diff%3600)/60),s=diff%60;
     const p=[];if(h>0)p.push(h+'h');if(m>0||h>0)p.push(m+'m');p.push(s+'s');
     txt.textContent='Invio tra '+p.join(' ')+' — clicca Annulla per fermare';
   }
   tick(); countdownTimer=setInterval(tick,1000);
+}
+
+// ── CONCURRENCY ──
+let concurrency = 1;
+function updateConcur(v) {
+  concurrency = parseInt(v);
+  document.getElementById('concur-badge').textContent = v;
+  const hints = ['','1 chiamata alla volta — sequenziale','2 chiamate in parallelo','3 chiamate in parallelo (massimo piano Pro)'];
+  document.getElementById('concur-hint').textContent = hints[concurrency] || concurrency + ' chiamate in parallelo';
 }
 
 // ── MODAL ──
@@ -809,61 +835,95 @@ function launch(){
   document.getElementById('modal-details').innerHTML=`
     <div class="md-row"><span class="md-label">Contatti validi</span><span class="md-val">${deduped.length}</span></div>
     <div class="md-row"><span class="md-label">Operatore</span><span class="md-val">${currentUser?.nome||''}</span></div>
+    <div class="md-row"><span class="md-label">Chiamate simultanee</span><span class="md-val">${concurrency}</span></div>
     <div class="md-row"><span class="md-label">Modalità</span><span class="md-val">${scheduledAt?'Pianificata':'Immediata'}</span></div>
     ${scheduledAt?`<div class="md-row"><span class="md-label">Orario</span><span class="md-val">${fmt}</span></div>`:''}
   `;
-  pendingLaunch={deduped,target,scheduledAt};
+  pendingLaunch={deduped,target,scheduledAt,concurrency};
   document.getElementById('confirm-modal').classList.add('on');
 }
 function closeModal(){ document.getElementById('confirm-modal').classList.remove('on'); pendingLaunch=null; }
 function confirmLaunch(){
   closeModal();
-  const {deduped,target,scheduledAt}=pendingLaunch;
-  if(target) startCountdown(target,deduped);
-  else sendWebhook(deduped,null);
+  const {deduped,target,scheduledAt,concurrency:c}=pendingLaunch;
+  if(target) startCountdown(target,deduped,c);
+  else sendWebhook(deduped,null,c);
 }
 
-async function sendWebhook(valid,scheduledAt){
-  const url='https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo';
-  document.getElementById('launch-btn').disabled=true;
-  showStatus('load','Invio lista a Make...');
-  try{
-    const payload={contatti:valid,totale:valid.length,avviatoIl:new Date().toISOString(),scheduledAt,modalita:scheduledAt?'scheduled':'immediate',operatore:currentUser?.nome||'unknown',fonte:'gem-landing'};
-    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(res.ok||res.status===200){
-      showStatus('ok',`Campagna avviata — ${valid.length} chiamate inviate`);
-      saveHistory(valid.length,scheduledAt);
-    } else showStatus('err','Errore webhook: HTTP '+res.status);
-  } catch(e){ showStatus('err','Errore di rete: '+e.message); }
-  finally{ document.getElementById('launch-btn').disabled=false; }
+async function sendWebhook(valid, scheduledAt, c) {
+  const url = 'https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo';
+  const chunkSize = c || 1;
+  document.getElementById('launch-btn').disabled = true;
+
+  // Dividi la lista in chunk da chunkSize
+  const chunks = [];
+  for (let i = 0; i < valid.length; i += chunkSize) {
+    chunks.push(valid.slice(i, i + chunkSize));
+  }
+
+  showStatus('load', `Invio ${valid.length} contatti in ${chunks.length} ${chunks.length===1?'blocco':'blocchi'} (${chunkSize} simultanei)...`);
+
+  try {
+    // Invia tutti i chunk in parallelo
+    const results = await Promise.all(chunks.map((chunk, idx) =>
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contatti: chunk,
+          totale: chunk.length,
+          avviatoIl: new Date().toISOString(),
+          scheduledAt,
+          modalita: scheduledAt ? 'scheduled' : 'immediate',
+          operatore: currentUser?.nome || 'unknown',
+          fonte: 'gem-landing',
+          chunk: idx + 1,
+          chunks_totali: chunks.length
+        })
+      })
+    ));
+
+    const ok = results.filter(r => r.ok || r.status === 200).length;
+    if (ok === chunks.length) {
+      showStatus('ok', `Campagna avviata — ${valid.length} chiamate in ${chunks.length} ${chunks.length===1?'blocco':'blocchi'} paralleli`);
+      saveHistory(valid.length, scheduledAt, chunkSize);
+    } else {
+      showStatus('err', `${ok}/${chunks.length} blocchi inviati correttamente`);
+    }
+  } catch(e) {
+    showStatus('err', 'Errore di rete: ' + e.message);
+  } finally {
+    document.getElementById('launch-btn').disabled = false;
+  }
 }
 
 // ── HISTORY ──
-function saveHistory(count,scheduledAt){
-  const key='gem_history';
-  let h=[];
-  try{ h=JSON.parse(localStorage.getItem(key)||'[]'); }catch(e){}
-  h.unshift({ts:new Date().toISOString(),count,scheduledAt,op:currentUser?.nome||''});
-  if(h.length>20) h=h.slice(0,20);
-  localStorage.setItem(key,JSON.stringify(h));
+function saveHistory(count, scheduledAt, chunkSize) {
+  const key = 'gem_history';
+  let h = [];
+  try { h = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) {}
+  h.unshift({ ts: new Date().toISOString(), count, scheduledAt, op: currentUser?.nome || '', chunkSize: chunkSize || 1 });
+  if (h.length > 20) h = h.slice(0, 20);
+  localStorage.setItem(key, JSON.stringify(h));
   renderHistory();
 }
-function renderHistory(){
-  const key='gem_history';
-  let h=[];
-  try{ h=JSON.parse(localStorage.getItem(key)||'[]'); }catch(e){}
-  const el=document.getElementById('history-list');
-  if(!h.length){ el.innerHTML='<div class="history-empty">Nessuna campagna ancora avviata</div>'; return; }
-  el.innerHTML=h.map(item=>{
-    const d=new Date(item.ts);
-    const dateStr=d.toLocaleDateString('it-IT')+' '+d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
-    const badge=item.scheduledAt?'<span class="hi-badge sched">Pianificata</span>':'<span class="hi-badge ok">Immediata</span>';
+function renderHistory() {
+  const key = 'gem_history';
+  let h = [];
+  try { h = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) {}
+  const el = document.getElementById('history-list');
+  if (!h.length) { el.innerHTML = '<div class="history-empty">Nessuna campagna ancora avviata</div>'; return; }
+  el.innerHTML = h.map(item => {
+    const d = new Date(item.ts);
+    const dateStr = d.toLocaleDateString('it-IT') + ' ' + d.toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'});
+    const badge = item.scheduledAt ? '<span class="hi-badge sched">Pianificata</span>' : '<span class="hi-badge ok">Immediata</span>';
+    const simul = item.chunkSize > 1 ? ` · ${item.chunkSize} simultanee` : '';
     return `<div class="history-item">
       <div><div class="hi-top">${badge}<span class="hi-title">${dateStr}</span></div>
-      <div class="hi-meta">Operatore: ${esc(item.op||'—')}</div></div>
+      <div class="hi-meta">Operatore: ${esc(item.op||'—')}${simul}</div></div>
       <div><div class="hi-count">${item.count}</div><div class="hi-count-label">chiamate</div></div>
     </div>`;
-  }).join('')+'<button class="history-clear" onclick="clearHistory()"><svg viewBox="0 0 16 16"><polyline points="2,4 14,4"/><path d="M5,4V2h6v2M6,7v5M10,7v5M3,4l1,10h8l1-10"/></svg>Cancella storico</button>';
+  }).join('') + '<button class="history-clear" onclick="clearHistory()"><svg viewBox="0 0 16 16"><polyline points="2,4 14,4"/><path d="M5,4V2h6v2M6,7v5M10,7v5M3,4l1,10h8l1-10"/></svg>Cancella storico</button>';
 }
 function clearHistory(){ localStorage.removeItem('gem_history'); renderHistory(); }
 
