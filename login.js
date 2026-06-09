@@ -1,31 +1,40 @@
-# campagne-out
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
-Piattaforma GEM Group per campagne chiamate outbound via Wildix Voicebot.
+export default function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-## File
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
-```
-├── index.html       ← App completa (login + dashboard)
-├── users.json       ← Gestione account utenti
-├── vercel.json      ← Config routing Vercel
-├── package.json     ← Metadata
-└── api/
-    └── login.js     ← Serverless function autenticazione
-```
+  const { username, password } = req.body || {};
+  if (!username || !password)  return res.status(400).json({ error: 'Credenziali mancanti' });
 
-## Gestione utenti
+  let users;
+  try {
+    const raw = readFileSync(join(process.cwd(), 'users.json'), 'utf8');
+    users = JSON.parse(raw);
+  } catch {
+    return res.status(500).json({ error: 'Errore configurazione server' });
+  }
 
-Modifica `users.json` per aggiungere o cambiare account:
+  const user = users.find(
+    u => u.username.toLowerCase() === username.toLowerCase().trim()
+      && u.password === password
+  );
 
-```json
-[
-  { "username": "mario", "password": "Password1!", "nome": "Mario" }
-]
-```
+  if (!user) {
+    return setTimeout(() =>
+      res.status(401).json({ error: 'Username o password errati' })
+    , 600);
+  }
 
-Ogni modifica su GitHub rideploya automaticamente in ~30 secondi.
-
-## Deploy su Vercel
-
-1. [vercel.com/new](https://vercel.com/new) → Import Git Repository
-2. Seleziona questa repo → Deploy
+  return res.status(200).json({
+    ok: true,
+    nome: user.nome,
+    username: user.username,
+    token: Buffer.from(`${user.username}:${Date.now()}`).toString('base64')
+  });
+}
