@@ -1,7 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "api/login.js": { "runtime": "nodejs18.x" }
+    "api/login.js": { "runtime": "nodejs24.x" }
   },
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
