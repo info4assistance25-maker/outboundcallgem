@@ -135,7 +135,6 @@ app.delete("/api/users/:username", (req, res) => {
   res.json({ ok: true });
 });
 
-export default app;
 
 app.post("/api/support", async (req, res) => {
   const { name, email, phone, company, subject, message } = req.body;
@@ -185,3 +184,61 @@ app.post("/api/support", async (req, res) => {
     res.status(500).json({ ok: false, error: "Errore invio email. Verifica la configurazione SMTP." });
   }
 });
+
+// ── ACCESS LOGS ──
+const LOGS_PATH = path.join(process.cwd(), 'access-logs.json');
+
+function readLogs(): any[] {
+  try { return JSON.parse(fs.readFileSync(LOGS_PATH, 'utf8')); } catch { return []; }
+}
+function writeLogs(logs: any[]) {
+  try { fs.writeFileSync(LOGS_PATH, JSON.stringify(logs.slice(0, 200), null, 2)); } catch {}
+}
+
+app.post("/api/access-log", (req, res) => {
+  const { username, nome, action } = req.body;
+  if (!username || !action) return res.status(400).json({ ok: false });
+  const logs = readLogs();
+  logs.unshift({ ts: new Date().toISOString(), username, nome: nome || username, action });
+  writeLogs(logs);
+  res.json({ ok: true });
+});
+
+app.get("/api/access-logs", (req, res) => {
+  res.json({ logs: readLogs() });
+});
+
+// ── NOTIFICA EMAIL COMPLETAMENTO CAMPAGNA ──
+app.post("/api/notify-campaign", async (req, res) => {
+  const { operatore, count, scheduledAt, note } = req.body;
+  if (!process.env.SMTP_USER || !process.env.NOTIFY_EMAIL) {
+    return res.status(200).json({ ok: false, reason: 'NOTIFY_EMAIL non configurata' });
+  }
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+  const ora = new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
+  try {
+    await transporter.sendMail({
+      from: `"GEM Campagne Out" <${process.env.SMTP_USER}>`,
+      to: process.env.NOTIFY_EMAIL,
+      subject: `✅ Campagna completata — ${count} chiamate (${operatore})`,
+      html: `
+        <h2>Campagna completata</h2>
+        <p><strong>Operatore:</strong> ${operatore}</p>
+        <p><strong>Chiamate inviate:</strong> ${count}</p>
+        <p><strong>Completata alle:</strong> ${ora}</p>
+        ${note ? `<p><strong>Note:</strong> ${note}</p>` : ''}
+        ${scheduledAt ? `<p><strong>Era pianificata per:</strong> ${new Date(scheduledAt).toLocaleString('it-IT')}</p>` : ''}
+      `,
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: 'Errore invio notifica' });
+  }
+});
+
+export default app;
