@@ -29,12 +29,40 @@
 @custom-variant dark (&:is(.dark *));
 
 @layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Scala tutto con il font-size di sistema — rispetta zoom browser e DPI */
+    font-size: clamp(13px, 1vw + 0.4rem, 16px);
+    -webkit-text-size-adjust: 100%;
+    height: 100%;
+  }
+
   body {
     @apply bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased font-sans transition-colors duration-200;
+    min-height: 100dvh;
+    min-height: 100vh; /* fallback */
+    overflow-x: hidden;
   }
+
+  #root {
+    min-height: 100dvh;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     @apply tracking-tight;
   }
+
+  /* Scrollbar sottile */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.5); }
 }
 
 @layer utilities {
@@ -43,5 +71,11 @@
   }
   .shadow-soft-blue {
     box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08), 0 4px 10px rgba(0, 0, 0, 0.03);
+  }
+
+  /* Altezza full schermo che rispetta la tastiera mobile */
+  .h-screen-safe {
+    height: 100dvh;
+    height: 100vh;
   }
 }
