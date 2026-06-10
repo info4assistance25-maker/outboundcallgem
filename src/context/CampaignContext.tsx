@@ -8,6 +8,8 @@ export interface User {
   role?: string;
   isAdmin?: boolean;
   canSchedule?: boolean;
+  email?: string;
+  telefono?: string;
 }
 
 export interface Contact {
@@ -48,6 +50,7 @@ export interface AccessLog {
 interface CampaignContextType {
   user: User | null;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
+  updateProfile: (email: string, telefono: string) => Promise<{ ok: boolean; error?: string }>;
   login: (u: string, p: string) => Promise<any>;
   verifyOtp: (u: string, otp: string) => Promise<any>;
   logout: () => void;
@@ -79,6 +82,8 @@ interface CampaignContextType {
   setCampaignNote: (n: string) => void;
   businessHoursEnabled: boolean;
   setBusinessHoursEnabled: (v: boolean) => void;
+  businessHoursConfig: { days: number[]; startHour: number; endHour: number };
+  setBusinessHoursConfig: (c: { days: number[]; startHour: number; endHour: number }) => void;
 
   historyFilter: { operator: string; dateFrom: string; dateTo: string };
   setHistoryFilter: (f: { operator: string; dateFrom: string; dateTo: string }) => void;
@@ -113,6 +118,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [testStatus, setTestStatus] = useState<{ type: 'idle' | 'load' | 'ok' | 'err', msg: string }>({ type: 'idle', msg: '' });
   const [campaignNote, setCampaignNote] = useState('');
   const [businessHoursEnabled, setBusinessHoursEnabled] = useState(false);
+  const [businessHoursConfig, setBusinessHoursConfig] = useState({ days: [1,2,3,4,5], startHour: 9, endHour: 19 });
   const [historyFilter, setHistoryFilter] = useState({ operator: '', dateFrom: '', dateTo: '' });
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [lists, setLists] = useState<ContactList[]>([]);
@@ -172,6 +178,24 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       console.error(err);
       return { ok: false, error: "Errore di rete" };
     }
+  };
+
+  const updateProfile = async (email: string, telefono: string) => {
+    try {
+      const res = await fetch('/api/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user?.username, email, telefono })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const updated = { ...user!, email, telefono };
+        setUser(updated);
+        sessionStorage.setItem('gem_session', JSON.stringify(updated));
+        return { ok: true };
+      }
+      return { ok: false, error: data.error };
+    } catch { return { ok: false, error: 'Errore di rete' }; }
   };
 
   const logout = () => {
@@ -247,12 +271,12 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Business hours check (lun-ven 9-19)
+  // Business hours check — usa la config personalizzata
   const isBusinessHours = () => {
     const now = new Date();
-    const day = now.getDay(); // 0=sun, 6=sat
+    const day = now.getDay();
     const hour = now.getHours();
-    return day >= 1 && day <= 5 && hour >= 9 && hour < 19;
+    return businessHoursConfig.days.includes(day) && hour >= businessHoursConfig.startHour && hour < businessHoursConfig.endHour;
   };
 
   // Filtered history
@@ -369,7 +393,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <CampaignContext.Provider value={{
-      user, setUser, login, verifyOtp, logout,
+      user, setUser, login, verifyOtp, logout, updateProfile,
       contacts, setContacts, updateManualContacts, validContacts, invalidCount, duplicateCount,
       uploadMode, setUploadMode,
       scheduleMode, setScheduleMode, scheduledAt, setScheduledAt,
@@ -378,6 +402,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       testSingleCall, testStatus,
       campaignNote, setCampaignNote,
       businessHoursEnabled, setBusinessHoursEnabled,
+      businessHoursConfig, setBusinessHoursConfig,
       historyFilter, setHistoryFilter, filteredHistory, exportHistoryToXLSX,
       history, clearHistory,
       lists, saveList, deleteList, loadList,
