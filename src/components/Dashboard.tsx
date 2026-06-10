@@ -1,240 +1,252 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
 import { GemLogo } from './Icons';
-import { LogOut, Sun, Moon } from 'lucide-react';
+import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Menu, X, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Step1Upload, Step2Preview, Step3Settings } from './CampaignSteps';
 import { LaunchSidebar } from './LaunchSidebar';
 import { ContactLists } from './ContactLists';
-
 import { AdminUsers } from './AdminUsers';
-
 import { SupportSection } from './SupportSection';
 import { StatsDashboard } from './StatsDashboard';
 import { ProfileSection } from './ProfileSection';
 
-export function Navbar() {
-  const { user, darkMode, toggleTheme, logout } = useCampaign();
+type Tab = 'campaign' | 'lists' | 'history' | 'profile' | 'support' | 'stats' | 'users';
 
-  return (
-    <nav className="sticky top-0 z-50 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center gap-8">
-            <a href="#" className="flex-shrink-0 flex items-center transition-opacity hover:opacity-80">
-              <GemLogo className="w-28 lg:w-32 text-slate-900 dark:text-white" />
-            </a>
-          </div>
-
-          <div className="flex items-center gap-4 sm:gap-6">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">Wildix System</span>
-            </div>
-
-            <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700">
-              <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-xs font-bold text-slate-700 dark:text-slate-300 uppercase shadow-sm">
-                {user?.nome.charAt(0)}
-              </div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 hidden sm:block">{user?.nome}</span>
-            </div>
-
-            <div className="flex items-center gap-1">
-              <button 
-                onClick={toggleTheme}
-                className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all"
-                title="Cambia Tema"
-              >
-                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              </button>
-
-              <button 
-                onClick={logout}
-                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all"
-                title="Esci"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
+interface NavItem {
+  id: Tab;
+  label: string;
+  icon: React.ElementType;
+  adminOnly?: boolean;
+  viewerHidden?: boolean;
 }
 
+const NAV_GROUPS = [
+  {
+    label: 'Campagne',
+    items: [
+      { id: 'campaign' as Tab, label: 'Nuova Campagna', icon: Plus, viewerHidden: true },
+      { id: 'lists' as Tab, label: 'Liste Salvate', icon: List, viewerHidden: true },
+      { id: 'history' as Tab, label: 'Storico Chiamate', icon: Clock },
+    ]
+  },
+  {
+    label: 'Account',
+    items: [
+      { id: 'profile' as Tab, label: 'Il Mio Profilo', icon: User },
+      { id: 'support' as Tab, label: 'Assistenza', icon: LifeBuoy },
+    ]
+  },
+  {
+    label: 'Amministrazione',
+    adminOnly: true,
+    items: [
+      { id: 'stats' as Tab, label: 'Statistiche', icon: BarChart2, adminOnly: true },
+      { id: 'users' as Tab, label: 'Gestione Utenti', icon: Users, adminOnly: true },
+    ]
+  },
+];
+
+const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
+  campaign: { title: 'Nuova Campagna', subtitle: 'Carica la lista contatti, definisci le tempistiche e avvia le chiamate sul centralino Wildix.' },
+  lists: { title: 'Liste Salvate', subtitle: 'Salva, gestisci o riutilizza le tue liste contatti precedentemente caricate.' },
+  history: { title: 'Storico Chiamate', subtitle: 'Consulta lo storico delle campagne effettuate e scarica i report associati.' },
+  profile: { title: 'Il Mio Profilo', subtitle: 'Gestisci le tue informazioni di contatto e le impostazioni del tuo account.' },
+  support: { title: 'Assistenza', subtitle: 'Invia una richiesta direttamente al nostro team tecnico o amministrativo.' },
+  stats: { title: 'Statistiche', subtitle: 'Panoramica delle campagne, chiamate per operatore e log accessi.' },
+  users: { title: 'Gestione Utenti', subtitle: 'Gestisci accessi, ruoli e permessi per gli utenti della piattaforma.' },
+};
+
 export function Dashboard() {
-  const { user } = useCampaign();
+  const { user, darkMode, toggleTheme, logout } = useCampaign();
+  const isAdmin = user?.isAdmin || user?.role === 'Admin';
   const isViewer = user?.role === 'Viewer';
-  const isAdmin = user?.role === 'Admin' || user?.isAdmin;
-  
-  const [activeTab, setActiveTab] = React.useState<'campaign' | 'history' | 'users' | 'lists' | 'support' | 'stats' | 'profile'>(
-    isViewer ? 'history' : 'campaign'
-  );
+  const [activeTab, setActiveTab] = useState<Tab>(isViewer ? 'history' : 'campaign');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleNav = (tab: Tab) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
+  };
+
+  const meta = TAB_META[activeTab];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 flex flex-col">
-      <Navbar />
-      
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
-        <div className="mb-6 lg:mb-10 pl-1 animate-in fade-in slide-in-from-top-4 duration-500">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-3 font-serif">
-            {activeTab === 'users' ? 'Gestione ' : activeTab === 'lists' ? 'Le Tue ' : activeTab === 'history' || isViewer ? 'Storico ' : activeTab === 'support' ? 'Richiedi ' : activeTab === 'stats' ? 'Dashboard ' : activeTab === 'profile' ? 'Il Mio ' : 'Nuova '}
-            <span className="text-slate-500 dark:text-slate-400 font-serif italic">
-              {activeTab === 'users' ? 'Utenti' : activeTab === 'lists' ? 'Liste' : activeTab === 'support' ? 'Assistenza' : activeTab === 'stats' ? 'Statistiche' : activeTab === 'profile' ? 'Profilo' : 'Campagna'}
-            </span>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex transition-colors duration-200">
+
+      {/* SIDEBAR */}
+      <>
+        {/* Mobile overlay */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        )}
+
+        <aside className={cn(
+          "fixed top-0 left-0 h-full z-50 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-transform duration-300 shadow-xl lg:shadow-none",
+          "lg:sticky lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}>
+          {/* Logo */}
+          <div className="flex items-center justify-between px-5 h-16 border-b border-slate-200 dark:border-slate-800 shrink-0">
+            <GemLogo className="w-28 text-slate-900 dark:text-white" />
+            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-slate-700 dark:hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Nav groups */}
+          <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+            {NAV_GROUPS.map(group => {
+              if (group.adminOnly && !isAdmin) return null;
+              const visibleItems = group.items.filter(item => {
+                if (item.adminOnly && !isAdmin) return false;
+                if (item.viewerHidden && isViewer) return false;
+                return true;
+              });
+              if (!visibleItems.length) return null;
+              return (
+                <div key={group.label}>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">{group.label}</div>
+                  <div className="space-y-0.5">
+                    {visibleItems.map(item => {
+                      const Icon = item.icon;
+                      const active = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleNav(item.id)}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left",
+                            active
+                              ? "bg-brand-600 text-white shadow-sm"
+                              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                          )}
+                        >
+                          <Icon className="w-4 h-4 shrink-0" />
+                          <span className="flex-1">{item.label}</span>
+                          {active && <ChevronRight className="w-3.5 h-3.5 opacity-70" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </nav>
+
+          {/* User + actions */}
+          <div className="border-t border-slate-200 dark:border-slate-800 p-3 shrink-0">
+            {/* Wildix status */}
+            <div className="flex items-center gap-2 px-3 py-2 mb-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Wildix · Attivo</span>
+            </div>
+            {/* User row */}
+            <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 mb-2">
+              <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center text-xs font-bold text-brand-700 dark:text-brand-300 uppercase shrink-0">
+                {user?.nome?.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user?.nome}</div>
+                <div className="text-xs text-slate-500 truncate">{user?.role || 'Editor'}</div>
+              </div>
+            </div>
+            {/* Theme + logout */}
+            <div className="flex gap-2">
+              <button
+                onClick={toggleTheme}
+                className="flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                {darkMode ? 'Chiaro' : 'Scuro'}
+              </button>
+              <button
+                onClick={logout}
+                className="flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Esci
+              </button>
+            </div>
+          </div>
+        </aside>
+      </>
+
+      {/* MAIN */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile topbar */}
+        <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
+          <button onClick={() => setSidebarOpen(true)} className="text-slate-500 hover:text-slate-900 dark:hover:text-white">
+            <Menu className="w-5 h-5" />
+          </button>
+          <GemLogo className="w-24 text-slate-900 dark:text-white" />
+          <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center text-xs font-bold text-brand-700 dark:text-brand-300 uppercase">
+            {user?.nome?.charAt(0)}
+          </div>
+        </header>
+
+        {/* Page header */}
+        <div className="px-6 lg:px-10 pt-8 pb-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 dark:text-white font-serif">
+            {meta.title}
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm lg:text-base font-normal max-w-2xl leading-relaxed">
-            {activeTab === 'users' 
-              ? 'Gestisci accessi, ruoli e permessi per gli utenti della piattaforma.'
-              : activeTab === 'lists'
-              ? 'Salva, gestisci o riutilizza le tue liste contatti precedentemente caricate.'
-              : activeTab === 'support'
-              ? 'Invia una richiesta direttamente al nostro team tecnico o amministrativo.'
-              : activeTab === 'stats'
-              ? 'Panoramica delle campagne, chiamate per operatore e log accessi.'
-              : activeTab === 'profile'
-              ? 'Gestisci le tue informazioni di contatto e le impostazioni del tuo account.'
-              : activeTab === 'history' || isViewer 
-              ? 'Consulta lo storico delle campagne effettuate e scarica i report associati.'
-              : 'Carica la lista contatti, definisci le tempistiche e avvia le chiamate sul centralino Wildix.'}
-          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">{meta.subtitle}</p>
         </div>
 
-        <div className="flex space-x-1 sm:space-x-2 border-b border-slate-200 dark:border-slate-800 mb-8 overflow-x-auto pb-px">
-          {!isViewer && (
-            <button
-              onClick={() => setActiveTab('campaign')}
-              className={cn(
-                "px-4 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
-                activeTab === 'campaign' 
-                  ? "border-brand-500 text-brand-600 dark:text-brand-400" 
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-              )}
-            >
-              Nuova Campagna
-            </button>
-          )}
+        {/* Content */}
+        <main className="flex-1 px-6 lg:px-10 py-8">
 
-          {!isViewer && (
-            <button
-              onClick={() => setActiveTab('lists')}
-              className={cn(
-                "px-4 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
-                activeTab === 'lists' 
-                  ? "border-brand-500 text-brand-600 dark:text-brand-400" 
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-              )}
-            >
-              Liste Salvate
-            </button>
-          )}
-          
-          <button
-            onClick={() => setActiveTab('history')}
-            className={cn(
-              "px-4 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
-              activeTab === 'history' 
-                ? "border-brand-500 text-brand-600 dark:text-brand-400" 
-                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-            )}
-          >
-            Storico Chiamate
-          </button>
-
-          <button
-            onClick={() => setActiveTab('support')}
-            className={cn(
-              "px-4 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
-              activeTab === 'support' 
-                ? "border-brand-500 text-brand-600 dark:text-brand-400" 
-                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-            )}
-          >
-            Assistenza
-          </button>
-
-          <button
-            onClick={() => setActiveTab('stats')}
-            className={cn(
-              "px-4 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
-              activeTab === 'stats' 
-                ? "border-brand-500 text-brand-600 dark:text-brand-400" 
-                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-            )}
-          >
-            Statistiche
-          </button>
-
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={cn(
-              "px-4 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
-              activeTab === 'profile' 
-                ? "border-brand-500 text-brand-600 dark:text-brand-400" 
-                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-            )}
-          >
-            Profilo
-          </button>
-
-          {isAdmin && (
-            <button
-              onClick={() => setActiveTab('users')}
-              className={cn(
-                "px-4 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
-                activeTab === 'users' 
-                  ? "border-brand-500 text-brand-600 dark:text-brand-400" 
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-              )}
-            >
-              Gestione Utenti
-            </button>
-          )}
-        </div>
-
-        {activeTab === 'campaign' && !isViewer && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="space-y-6 lg:col-span-2">
-              <Step1Upload />
-              <Step2Preview />
-              <Step3Settings />
+          {activeTab === 'campaign' && !isViewer && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="space-y-6 lg:col-span-2">
+                <Step1Upload />
+                <Step2Preview />
+                <Step3Settings />
+              </div>
+              <div className="lg:col-span-1 lg:border-l border-slate-200 dark:border-slate-800/50 lg:pl-8">
+                <LaunchSidebar mode="launch" />
+              </div>
             </div>
-            <div className="lg:col-span-1 border-l-0 lg:border-l border-slate-200 dark:border-slate-800/50 pl-0 lg:pl-8">
-              <LaunchSidebar mode="launch" />
+          )}
+
+          {activeTab === 'lists' && !isViewer && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <ContactLists onSelectProcess={() => handleNav('campaign')} />
             </div>
-          </div>
-        )}
+          )}
 
-        {activeTab === 'lists' && !isViewer && (
-          <ContactLists onSelectProcess={() => setActiveTab('campaign')} />
-        )}
+          {activeTab === 'history' && (
+            <div className="max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <LaunchSidebar mode="history" />
+            </div>
+          )}
 
-        {activeTab === 'history' && (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <LaunchSidebar mode="history" />
-          </div>
-        )}
+          {activeTab === 'profile' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <ProfileSection />
+            </div>
+          )}
 
-        {activeTab === 'support' && (
-          <SupportSection />
-        )}
+          {activeTab === 'support' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <SupportSection />
+            </div>
+          )}
 
-        {activeTab === 'stats' && (
-          <StatsDashboard />
-        )}
+          {activeTab === 'stats' && isAdmin && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <StatsDashboard />
+            </div>
+          )}
 
-        {activeTab === 'profile' && (
-          <ProfileSection />
-        )}
+          {activeTab === 'users' && isAdmin && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <AdminUsers />
+            </div>
+          )}
 
-        {activeTab === 'users' && isAdmin && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <AdminUsers />
-          </div>
-        )}
-
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
