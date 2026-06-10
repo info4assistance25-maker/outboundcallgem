@@ -34,7 +34,7 @@ export function Login() {
       setQrUrl(res.qrUrl);
       setError('');
     } else if (res && res.ok) {
-      const loggedUser = { username: res.username, nome: res.nome, role: res.role, isAdmin: res.isAdmin, canSchedule: res.canSchedule };
+      const loggedUser = { username: res.username, nome: res.nome, role: res.role, isAdmin: res.isAdmin, canSchedule: res.canSchedule, email: res.email || '', telefono: res.telefono || '' };
       setUser(loggedUser);
       sessionStorage.setItem('gem_session', JSON.stringify(loggedUser));
     } else {
@@ -187,4 +187,3 @@ export function Login() {
     </div>
   );
 }
-
