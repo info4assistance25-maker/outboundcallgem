@@ -33,6 +33,16 @@ export interface HistoryItem {
   opt: string;
   chunkSize: number;
   contactsList?: Contact[];
+  note?: string;
+  scenarioStatus?: 'pending' | 'running' | 'done' | 'error';
+  executionId?: string;
+}
+
+export interface AccessLog {
+  ts: string;
+  username: string;
+  nome: string;
+  action: string;
 }
 
 interface CampaignContextType {
@@ -62,6 +72,18 @@ interface CampaignContextType {
   isLaunching: boolean;
   launchStatus: { type: 'idle' | 'load' | 'ok' | 'err'; msg: string };
   launchCampaign: () => Promise<void>;
+  testSingleCall: (contact: Contact) => Promise<void>;
+  testStatus: { type: 'idle' | 'load' | 'ok' | 'err'; msg: string };
+  
+  campaignNote: string;
+  setCampaignNote: (n: string) => void;
+  businessHoursEnabled: boolean;
+  setBusinessHoursEnabled: (v: boolean) => void;
+
+  historyFilter: { operator: string; dateFrom: string; dateTo: string };
+  setHistoryFilter: (f: { operator: string; dateFrom: string; dateTo: string }) => void;
+  filteredHistory: HistoryItem[];
+  exportHistoryToXLSX: () => void;
   
   history: HistoryItem[];
   clearHistory: () => void;
@@ -88,6 +110,10 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [concurrency, setConcurrency] = useState<number>(1);
   const [isLaunching, setIsLaunching] = useState(false);
   const [launchStatus, setLaunchStatus] = useState<{ type: 'idle' | 'load' | 'ok' | 'err', msg: string }>({ type: 'idle', msg: '' });
+  const [testStatus, setTestStatus] = useState<{ type: 'idle' | 'load' | 'ok' | 'err', msg: string }>({ type: 'idle', msg: '' });
+  const [campaignNote, setCampaignNote] = useState('');
+  const [businessHoursEnabled, setBusinessHoursEnabled] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState({ operator: '', dateFrom: '', dateTo: '' });
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [lists, setLists] = useState<ContactList[]>([]);
   const [darkMode, setDarkMode] = useState(false);
@@ -219,34 +245,91 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Business hours check (lun-ven 9-19)
+  const isBusinessHours = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0=sun, 6=sat
+    const hour = now.getHours();
+    return day >= 1 && day <= 5 && hour >= 9 && hour < 19;
+  };
+
+  // Filtered history
+  const filteredHistory = history.filter(h => {
+    if (historyFilter.operator && !h.opt.toLowerCase().includes(historyFilter.operator.toLowerCase())) return false;
+    if (historyFilter.dateFrom && new Date(h.ts) < new Date(historyFilter.dateFrom)) return false;
+    if (historyFilter.dateTo && new Date(h.ts) > new Date(historyFilter.dateTo + 'T23:59:59')) return false;
+    return true;
+  });
+
+  // Export history to XLSX
+  const exportHistoryToXLSX = () => {
+    const rows = filteredHistory.map(h => ({
+      Data: new Date(h.ts).toLocaleString('it-IT'),
+      Operatore: h.opt,
+      Chiamate: h.count,
+      Simultanee: h.chunkSize,
+      Modalità: h.scheduledAt ? 'Pianificata' : 'Immediata',
+      'Ora Pianificata': h.scheduledAt ? new Date(h.scheduledAt).toLocaleString('it-IT') : '-',
+      Note: h.note || '-',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Storico');
+    XLSX.writeFile(wb, `Storico_Campagne_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.xlsx`);
+  };
+
+  // Test single call
+  const testSingleCall = async (contact: Contact) => {
+    setTestStatus({ type: 'load', msg: `Test chiamata a ${contact.nome} (${contact.numero})...` });
+    try {
+      const res = await fetch('https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contatti: [contact],
+          totale: 1,
+          avviatoIl: new Date().toISOString(),
+          scheduledAt: null,
+          modalita: 'test',
+          operatore: user?.nome,
+          fonte: 'gem-test',
+          chunk: 1, chunks_totali: 1
+        })
+      });
+      if (res.ok) setTestStatus({ type: 'ok', msg: `✓ Chiamata test inviata a ${contact.nome}` });
+      else setTestStatus({ type: 'err', msg: `Errore HTTP ${res.status}` });
+    } catch(e: any) {
+      setTestStatus({ type: 'err', msg: 'Errore di rete: ' + e.message });
+    }
+    setTimeout(() => setTestStatus({ type: 'idle', msg: '' }), 5000);
+  };
+
   const launchCampaign = async () => {
     if (!validContacts.length) return;
 
+    if (businessHoursEnabled && !isBusinessHours()) {
+      setLaunchStatus({ type: 'err', msg: 'Fuori dagli orari consentiti (lun-ven 9:00-19:00). Disattiva il controllo orari per procedere.' });
+      return;
+    }
+
     let targetAt: string | null = null;
     if (scheduleMode === 'later') {
-      if (!scheduledAt) {
-        setLaunchStatus({ type: 'err', msg: 'Seleziona data e ora' });
-        return;
-      }
+      if (!scheduledAt) { setLaunchStatus({ type: 'err', msg: 'Seleziona data e ora' }); return; }
       const target = new Date(scheduledAt);
-      if (target <= new Date()) {
-        setLaunchStatus({ type: 'err', msg: 'Seleziona un orario futuro' });
-        return;
-      }
+      if (target <= new Date()) { setLaunchStatus({ type: 'err', msg: 'Seleziona un orario futuro' }); return; }
       targetAt = target.toISOString();
     }
 
     setIsLaunching(true);
     setLaunchStatus({ type: 'load', msg: `Preparazione invio di ${validContacts.length} contatti...` });
 
-    // Chunking logic (Matches Vanilla Original exactly)
     const chunks = [];
     for (let i = 0; i < validContacts.length; i += concurrency) {
       chunks.push(validContacts.slice(i, i + concurrency));
     }
 
     try {
-      const results = await Promise.all(chunks.map((chunk, idx) => 
+      const results = await Promise.all(chunks.map((chunk, idx) =>
         fetch('https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -258,6 +341,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
             modalita: targetAt ? 'scheduled' : 'immediate',
             operatore: user?.nome,
             fonte: 'gem-dashboard-react',
+            note: campaignNote || undefined,
             chunk: idx + 1,
             chunks_totali: chunks.length
           })
@@ -268,6 +352,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       if (okCount === chunks.length) {
         setLaunchStatus({ type: 'ok', msg: `Campagna inviata — ${validContacts.length} chiamate in elaborazione.` });
         saveHistory(validContacts.length, targetAt, concurrency, validContacts.map(c => ({...c})));
+        setCampaignNote('');
       } else {
         setLaunchStatus({ type: 'err', msg: `${okCount}/${chunks.length} blocchi inviati correttamente.` });
       }
@@ -281,13 +366,18 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   return (
     <CampaignContext.Provider value={{
       user, setUser, login, verifyOtp, logout,
-      contacts: evaluated, setContacts, validContacts, invalidCount, duplicateCount, updateManualContacts,
+      contacts, setContacts, updateManualContacts, validContacts, invalidCount, duplicateCount,
       uploadMode, setUploadMode,
-      scheduleMode, setScheduleMode, scheduledAt, setScheduledAt, concurrency, setConcurrency,
+      scheduleMode, setScheduleMode, scheduledAt, setScheduledAt,
+      concurrency, setConcurrency,
       isLaunching, launchStatus, launchCampaign,
+      testSingleCall, testStatus,
+      campaignNote, setCampaignNote,
+      businessHoursEnabled, setBusinessHoursEnabled,
+      historyFilter, setHistoryFilter, filteredHistory, exportHistoryToXLSX,
       history, clearHistory,
       lists, saveList, deleteList, loadList,
-      darkMode, toggleTheme
+      darkMode, toggleTheme,
     }}>
       {children}
     </CampaignContext.Provider>
