@@ -7,27 +7,51 @@ const app = express();
 app.use(express.json());
 
 const USERS_FILE = path.join(process.cwd(), "users.json");
+const GITHUB_REPO = "info4assistance25-maker/outboundcallgem";
+const GITHUB_FILE_PATH = "users.json";
 
-// Helper per leggere e scrivere utenti
 function readUsers() {
   try {
-    if (!fs.existsSync(USERS_FILE)) {
-      return [];
-    }
-    const data = fs.readFileSync(USERS_FILE, "utf-8");
-    return JSON.parse(data);
+    if (!fs.existsSync(USERS_FILE)) return [];
+    return JSON.parse(fs.readFileSync(USERS_FILE, "utf-8"));
   } catch (err) {
     console.error("Error reading users.json", err);
     return [];
   }
 }
 
-function writeUsers(users: any[]) {
+async function writeUsers(users: any[]) {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    // Fallback locale (solo sviluppo)
+    try { fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2)); } catch {}
+    return;
+  }
   try {
-    // Nota: in ambiente serverless (es. Vercel), la scrittura su file system non è persistente.
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+    // 1. Leggi SHA del file attuale
+    const getRes = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json" }
+    });
+    const fileData = await getRes.json() as any;
+    const sha = fileData.sha;
+
+    // 2. Scrivi il nuovo contenuto
+    const content = Buffer.from(JSON.stringify(users, null, 2)).toString("base64");
+    await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`, {
+      method: "PUT",
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: "application/vnd.github.v3+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: "chore: update users permissions",
+        content,
+        sha
+      })
+    });
   } catch (err) {
-    console.error("Error writing users.json", err);
+    console.error("Error writing users to GitHub", err);
   }
 }
 
@@ -76,7 +100,7 @@ app.get("/api/users", (req, res) => {
   res.json(safeUsers);
 });
 
-app.post("/api/users", (req, res) => {
+app.post("/api/users", async (req, res) => {
   const { username, password, nome, role, canSchedule } = req.body;
   
   if (!username || !password || !nome || !role) {
@@ -89,12 +113,12 @@ app.post("/api/users", (req, res) => {
   }
 
   users.push({ username, password, nome, role, isAdmin: role === 'Admin', canSchedule: canSchedule === true });
-  writeUsers(users);
+  await writeUsers(users);
 
   res.json({ ok: true });
 });
 
-app.put("/api/users/:username", (req, res) => {
+app.put("/api/users/:username", async (req, res) => {
   const { username } = req.params;
   const { password, nome, role, canSchedule } = req.body;
 
@@ -117,12 +141,12 @@ app.put("/api/users/:username", (req, res) => {
     isAdmin: role === 'Admin' || users[index].username.toLowerCase() === 'admin',
     canSchedule: canSchedule === true
   };
-  writeUsers(users);
+  await writeUsers(users);
   
   res.json({ ok: true });
 });
 
-app.delete("/api/users/:username", (req, res) => {
+app.delete("/api/users/:username", async (req, res) => {
   const { username } = req.params;
   
   let users = readUsers();
@@ -133,7 +157,7 @@ app.delete("/api/users/:username", (req, res) => {
     return res.status(404).json({ error: "Utente non trovato" });
   }
 
-  writeUsers(users);
+  await writeUsers(users);
   res.json({ ok: true });
 });
 
@@ -197,7 +221,7 @@ app.get("/api/me", (req, res) => {
   res.json({ ok: true, email: user.email || '', telefono: user.telefono || '' });
 });
 
-app.put("/api/me", (req, res) => {
+app.put("/api/me", async (req, res) => {
   const { username, email, telefono } = req.body;
   if (!username) return res.status(400).json({ ok: false, error: 'Username richiesto' });
   const users = readUsers();
@@ -205,7 +229,7 @@ app.put("/api/me", (req, res) => {
   if (idx === -1) return res.status(404).json({ ok: false, error: 'Utente non trovato' });
   users[idx].email = email || '';
   users[idx].telefono = telefono || '';
-  writeUsers(users);
+  await writeUsers(users);
   res.json({ ok: true });
 });
 
