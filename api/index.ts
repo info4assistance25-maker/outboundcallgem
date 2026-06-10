@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import nodemailer from "nodemailer";
 
 const app = express();
 app.use(express.json());
@@ -135,3 +136,39 @@ app.delete("/api/users/:username", (req, res) => {
 });
 
 export default app;
+
+app.post("/api/support", async (req, res) => {
+  const { name, email, subject, message } = req.body;
+  if (!subject || !message) {
+    return res.status(400).json({ ok: false, error: "Dati mancanti" });
+  }
+
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    return res.status(500).json({ ok: false, error: "Credenziali SMTP non configurate. Aggiungile come variabili d'ambiente su Vercel." });
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: parseInt(process.env.SMTP_PORT || "587"),
+    secure: process.env.SMTP_SECURE === "true",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  try {
+    await transporter.sendMail({
+      from: `"${name || 'GEM Outbound'}" <${process.env.SMTP_USER}>`,
+      replyTo: email || process.env.SMTP_USER,
+      to: "ticket@gemgroup.odoo.com",
+      subject: `[Supporto] ${subject}`,
+      text: message,
+      html: `<p><strong>Da:</strong> ${name} (${email})</p><p><strong>Messaggio:</strong></p><p>${message.replace(/\n/g, '<br>')}</p>`,
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Errore invio email:", error);
+    res.status(500).json({ ok: false, error: "Errore invio email. Verifica la configurazione SMTP." });
+  }
+});
