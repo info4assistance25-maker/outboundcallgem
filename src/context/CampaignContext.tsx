@@ -164,6 +164,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
         const loggedUser = { username: data.username, nome: data.nome, role: data.role, isAdmin: data.isAdmin, canSchedule: data.canSchedule };
         setUser(loggedUser);
         sessionStorage.setItem('gem_session', JSON.stringify(loggedUser));
+        fetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: data.username, nome: data.nome, action: 'login' }) }).catch(() => {});
         return { ok: true };
       }
       return data;
@@ -174,6 +175,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    if (user) fetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user.username, nome: user.nome, action: 'logout' }) }).catch(() => {});
     sessionStorage.removeItem('gem_session');
     setUser(null);
   };
@@ -353,6 +355,8 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
         setLaunchStatus({ type: 'ok', msg: `Campagna inviata — ${validContacts.length} chiamate in elaborazione.` });
         saveHistory(validContacts.length, targetAt, concurrency, validContacts.map(c => ({...c})));
         setCampaignNote('');
+        // Notifica email completamento (fire and forget)
+        fetch('/api/notify-campaign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operatore: user?.nome, count: validContacts.length, scheduledAt: targetAt, note: campaignNote || undefined }) }).catch(() => {});
       } else {
         setLaunchStatus({ type: 'err', msg: `${okCount}/${chunks.length} blocchi inviati correttamente.` });
       }
