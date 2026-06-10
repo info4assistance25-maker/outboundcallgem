@@ -70,7 +70,7 @@ export function AdminUsers() {
       nome: u.nome,
       password: u.password, // Only if returned by API, otherwise keep blank
       role: u.role || (u.isAdmin ? 'Admin' : 'Editor'),
-      canSchedule: u.hasOwnProperty('canSchedule') ? u.canSchedule : true
+      canSchedule: u.canSchedule === true
     });
   };
 
@@ -250,7 +250,7 @@ export function AdminUsers() {
                     );
                   }
 
-                  const hasSchedule = u.hasOwnProperty('canSchedule') ? u.canSchedule : true;
+                  const hasSchedule = u.canSchedule === true;
 
                   return (
                     <div key={u.username} className="grid grid-cols-[2fr_2fr_2fr_2fr_1fr_auto] gap-3 p-3 items-center border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
