@@ -1,0 +1,137 @@
+import express from "express";
+import path from "path";
+import fs from "fs";
+
+const app = express();
+app.use(express.json());
+
+const USERS_FILE = path.join(process.cwd(), "users.json");
+
+// Helper per leggere e scrivere utenti
+function readUsers() {
+  try {
+    if (!fs.existsSync(USERS_FILE)) {
+      return [];
+    }
+    const data = fs.readFileSync(USERS_FILE, "utf-8");
+    return JSON.parse(data);
+  } catch (err) {
+    console.error("Error reading users.json", err);
+    return [];
+  }
+}
+
+function writeUsers(users: any[]) {
+  try {
+    // Nota: in ambiente serverless (es. Vercel), la scrittura su file system non è persistente.
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Error writing users.json", err);
+  }
+}
+
+// API
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ ok: false, error: "Username e password richiesti" });
+  }
+
+  const users = readUsers();
+  const user = users.find(
+    (u: any) => u.username.toLowerCase() === username.toLowerCase() && u.password === password
+  );
+
+  if (user) {
+    res.json({ 
+      ok: true, 
+      username: user.username, 
+      nome: user.nome, 
+      role: user.role || (user.isAdmin ? 'Admin' : 'Editor'),
+      isAdmin: user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === 'Admin',
+      canSchedule: user.hasOwnProperty('canSchedule') ? user.canSchedule : true
+    });
+  } else {
+    res.status(401).json({ ok: false, error: "Credenziali errate" });
+  }
+});
+
+app.get("/api/users", (req, res) => {
+  const users = readUsers();
+  // Return users without passwords for safety, though it's internal logic
+  const safeUsers = users.map((u: any) => ({ 
+    username: u.username, 
+    nome: u.nome, 
+    password: u.password, 
+    role: u.role || (u.isAdmin ? 'Admin' : 'Editor'),
+    canSchedule: u.hasOwnProperty('canSchedule') ? u.canSchedule : true
+  }));
+  res.json(safeUsers);
+});
+
+app.post("/api/users", (req, res) => {
+  const { username, password, nome, role, canSchedule } = req.body;
+  
+  if (!username || !password || !nome || !role) {
+    return res.status(400).json({ error: "Dati mancanti" });
+  }
+
+  const users = readUsers();
+  if (users.find((u: any) => u.username.toLowerCase() === username.toLowerCase())) {
+    return res.status(400).json({ error: "Username già esistente" });
+  }
+
+  users.push({ username, password, nome, role, isAdmin: role === 'Admin', canSchedule: canSchedule !== false });
+  writeUsers(users);
+
+  res.json({ ok: true });
+});
+
+app.put("/api/users/:username", (req, res) => {
+  const { username } = req.params;
+  const { password, nome, role, canSchedule } = req.body;
+
+  if (!password || !nome || !role) {
+    return res.status(400).json({ error: "Dati mancanti" });
+  }
+
+  let users = readUsers();
+  const index = users.findIndex((u: any) => u.username.toLowerCase() === username.toLowerCase());
+
+  if (index === -1) {
+    return res.status(404).json({ error: "Utente non trovato" });
+  }
+
+  users[index] = { 
+    ...users[index], 
+    password, 
+    nome, 
+    role, 
+    isAdmin: role === 'Admin' || users[index].username.toLowerCase() === 'admin',
+    canSchedule: canSchedule !== false
+  };
+  writeUsers(users);
+  
+  res.json({ ok: true });
+});
+
+app.delete("/api/users/:username", (req, res) => {
+  const { username } = req.params;
+  
+  let users = readUsers();
+  const initialLength = users.length;
+  users = users.filter((u: any) => u.username.toLowerCase() !== username.toLowerCase());
+
+  if (users.length === initialLength) {
+    return res.status(404).json({ error: "Utente non trovato" });
+  }
+
+  writeUsers(users);
+  res.json({ ok: true });
+});
+
+export default app;
