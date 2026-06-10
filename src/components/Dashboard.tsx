@@ -72,7 +72,7 @@ export function Dashboard() {
   const meta = TAB_META[activeTab];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex transition-colors duration-200">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex transition-colors duration-200" style={{minHeight:'100dvh'}}>
 
       {/* SIDEBAR */}
       <>
@@ -82,10 +82,10 @@ export function Dashboard() {
         )}
 
         <aside className={cn(
-          "fixed top-0 left-0 h-full z-50 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-transform duration-300 shadow-xl lg:shadow-none",
+          "fixed top-0 left-0 h-full z-50 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-transform duration-300 shadow-xl lg:shadow-none",
           "lg:sticky lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        )}>
+        )} style={{width: 'clamp(220px, 16vw, 260px)', minHeight: '100dvh'}}>
           {/* Logo */}
           <div className="flex items-center justify-between px-5 h-16 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <GemLogo className="w-28 text-slate-900 dark:text-white" />
