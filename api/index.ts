@@ -54,7 +54,9 @@ app.post("/api/login", (req, res) => {
       nome: user.nome, 
       role: user.role || (user.isAdmin ? 'Admin' : 'Editor'),
       isAdmin: user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === 'Admin',
-      canSchedule: user.hasOwnProperty('canSchedule') ? user.canSchedule : true
+      canSchedule: user.canSchedule === true,
+      email: user.email || '',
+      telefono: user.telefono || ''
     });
   } else {
     res.status(401).json({ ok: false, error: "Credenziali errate" });
@@ -183,6 +185,28 @@ app.post("/api/support", async (req, res) => {
     console.error("Errore invio email:", error);
     res.status(500).json({ ok: false, error: "Errore invio email. Verifica la configurazione SMTP." });
   }
+});
+
+// ── PROFILO UTENTE ──
+app.get("/api/me", (req, res) => {
+  const { username } = req.query;
+  if (!username) return res.status(400).json({ ok: false });
+  const users = readUsers();
+  const user = users.find((u: any) => u.username.toLowerCase() === String(username).toLowerCase());
+  if (!user) return res.status(404).json({ ok: false });
+  res.json({ ok: true, email: user.email || '', telefono: user.telefono || '' });
+});
+
+app.put("/api/me", (req, res) => {
+  const { username, email, telefono } = req.body;
+  if (!username) return res.status(400).json({ ok: false, error: 'Username richiesto' });
+  const users = readUsers();
+  const idx = users.findIndex((u: any) => u.username.toLowerCase() === username.toLowerCase());
+  if (idx === -1) return res.status(404).json({ ok: false, error: 'Utente non trovato' });
+  users[idx].email = email || '';
+  users[idx].telefono = telefono || '';
+  writeUsers(users);
+  res.json({ ok: true });
 });
 
 // ── ACCESS LOGS ──
