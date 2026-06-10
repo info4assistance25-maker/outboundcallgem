@@ -6,8 +6,8 @@ import { cn } from '../lib/utils';
 export function SupportSection() {
   const { user } = useCampaign();
   
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState(user?.telefono || '');
   const [company, setCompany] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
