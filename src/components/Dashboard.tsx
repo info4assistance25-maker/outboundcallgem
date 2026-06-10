@@ -10,6 +10,7 @@ import { ContactLists } from './ContactLists';
 import { AdminUsers } from './AdminUsers';
 
 import { SupportSection } from './SupportSection';
+import { StatsDashboard } from './StatsDashboard';
 
 export function Navbar() {
   const { user, darkMode, toggleTheme, logout } = useCampaign();
@@ -66,7 +67,7 @@ export function Dashboard() {
   const isViewer = user?.role === 'Viewer';
   const isAdmin = user?.role === 'Admin' || user?.isAdmin;
   
-  const [activeTab, setActiveTab] = React.useState<'campaign' | 'history' | 'users' | 'lists' | 'support'>(
+  const [activeTab, setActiveTab] = React.useState<'campaign' | 'history' | 'users' | 'lists' | 'support' | 'stats'>(
     isViewer ? 'history' : 'campaign'
   );
 
@@ -77,9 +78,9 @@ export function Dashboard() {
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
         <div className="mb-6 lg:mb-10 pl-1 animate-in fade-in slide-in-from-top-4 duration-500">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-3 font-serif">
-            {activeTab === 'users' ? 'Gestione ' : activeTab === 'lists' ? 'Le Tue ' : isViewer || activeTab === 'history' ? 'Storico ' : activeTab === 'support' ? 'Richiedi ' : 'Nuova '}
+            {activeTab === 'users' ? 'Gestione ' : activeTab === 'lists' ? 'Le Tue ' : isViewer || activeTab === 'history' ? 'Storico ' : activeTab === 'support' ? 'Richiedi ' : activeTab === 'stats' ? 'Dashboard ' : 'Nuova '}
             <span className="text-slate-500 dark:text-slate-400 font-serif italic">
-              {activeTab === 'users' ? 'Utenti' : activeTab === 'lists' ? 'Liste' : activeTab === 'support' ? 'Assistenza' : 'Campagna'}
+              {activeTab === 'users' ? 'Utenti' : activeTab === 'lists' ? 'Liste' : activeTab === 'support' ? 'Assistenza' : activeTab === 'stats' ? 'Statistiche' : 'Campagna'}
             </span>
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm lg:text-base font-normal max-w-2xl leading-relaxed">
@@ -89,6 +90,8 @@ export function Dashboard() {
               ? 'Salva, gestisci o riutilizza le tue liste contatti precedentemente caricate.'
               : activeTab === 'support'
               ? 'Invia una richiesta direttamente al nostro team tecnico o amministrativo.'
+              : activeTab === 'stats'
+              ? 'Panoramica delle campagne, chiamate per operatore e log accessi.'
               : activeTab === 'history' || isViewer 
               ? 'Consulta lo storico delle campagne effettuate e scarica i report associati.'
               : 'Carica la lista contatti, definisci le tempistiche e avvia le chiamate sul centralino Wildix.'}
@@ -148,6 +151,18 @@ export function Dashboard() {
             Assistenza
           </button>
 
+          <button
+            onClick={() => setActiveTab('stats')}
+            className={cn(
+              "px-4 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
+              activeTab === 'stats' 
+                ? "border-brand-500 text-brand-600 dark:text-brand-400" 
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+            )}
+          >
+            Statistiche
+          </button>
+
           {isAdmin && (
             <button
               onClick={() => setActiveTab('users')}
@@ -188,6 +203,10 @@ export function Dashboard() {
 
         {activeTab === 'support' && (
           <SupportSection />
+        )}
+
+        {activeTab === 'stats' && (
+          <StatsDashboard />
         )}
 
         {activeTab === 'users' && isAdmin && (
