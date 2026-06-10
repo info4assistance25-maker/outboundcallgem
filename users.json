@@ -1,12 +1,66 @@
 [
-  { "username": "samuele",   "password": "Gem@2026!",  "nome": "Samuele",   "isAdmin": true,  "canSchedule": true  },
-  { "username": "admin",     "password": "GemAdmin1!", "nome": "Admin",     "isAdmin": true,  "canSchedule": true  },
-  { "username": "stefano",   "password": "Gem@2026!",  "nome": "Stefano",   "canSchedule": true  },
-  { "username": "emiliano",  "password": "Torino.1",   "nome": "Emiliano",  "canSchedule": false },
-  { "username": "miranda",   "password": "Torino.1",   "nome": "Miranda",   "canSchedule": true  },
-  { "username": "giovanni",  "password": "Torino.1",   "nome": "Giovanni",  "canSchedule": true  },
-  { "username": "giulia",    "password": "Torino.1",   "nome": "Giulia",    "canSchedule": true  },
-  { "username": "mauro",     "password": "Torino.1",   "nome": "Mauro",     "canSchedule": true  },
-  { "username": "barbara",   "password": "Torino.1",   "nome": "Barbara",   "canSchedule": true  },
-  { "username": "gabriella", "password": "Torino.1",   "nome": "Gabriella", "canSchedule": true  }
+  {
+    "username": "samuele",
+    "password": "Gem@2026!",
+    "nome": "Samuele",
+    "isAdmin": true,
+    "canSchedule": true
+  },
+  {
+    "username": "admin",
+    "password": "GemAdmin1!",
+    "nome": "Admin",
+    "isAdmin": true,
+    "canSchedule": true
+  },
+  {
+    "username": "stefano",
+    "password": "Gem@2026!",
+    "nome": "Stefano",
+    "canSchedule": true
+  },
+  {
+    "username": "emiliano",
+    "password": "Torino.1",
+    "nome": "Emiliano",
+    "canSchedule": true,
+    "role": "Editor",
+    "isAdmin": false
+  },
+  {
+    "username": "miranda",
+    "password": "Torino.1",
+    "nome": "Miranda",
+    "canSchedule": true
+  },
+  {
+    "username": "giovanni",
+    "password": "Torino.1",
+    "nome": "Giovanni",
+    "canSchedule": true
+  },
+  {
+    "username": "giulia",
+    "password": "Torino.1",
+    "nome": "Giulia",
+    "canSchedule": true
+  },
+  {
+    "username": "mauro",
+    "password": "Torino.1",
+    "nome": "Mauro",
+    "canSchedule": true
+  },
+  {
+    "username": "barbara",
+    "password": "Torino.1",
+    "nome": "Barbara",
+    "canSchedule": true
+  },
+  {
+    "username": "gabriella",
+    "password": "Torino.1",
+    "nome": "Gabriella",
+    "canSchedule": true
+  }
 ]
