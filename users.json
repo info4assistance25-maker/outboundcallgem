@@ -23,7 +23,7 @@
     "username": "emiliano",
     "password": "Torino.1",
     "nome": "Emiliano",
-    "canSchedule": true,
+    "canSchedule": false,
     "role": "Editor",
     "isAdmin": false,
     "email": "ebattaglia@gemgroupsrls.it",
