@@ -37,6 +37,7 @@ export interface HistoryItem {
 
 interface CampaignContextType {
   user: User | null;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
   login: (u: string, p: string) => Promise<any>;
   verifyOtp: (u: string, otp: string) => Promise<any>;
   logout: () => void;
@@ -279,7 +280,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <CampaignContext.Provider value={{
-      user, login, verifyOtp, logout,
+      user, setUser, login, verifyOtp, logout,
       contacts: evaluated, setContacts, validContacts, invalidCount, duplicateCount, updateManualContacts,
       uploadMode, setUploadMode,
       scheduleMode, setScheduleMode, scheduledAt, setScheduledAt, concurrency, setConcurrency,
