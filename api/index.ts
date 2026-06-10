@@ -23,35 +23,47 @@ function readUsers() {
 async function writeUsers(users: any[]) {
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
-    // Fallback locale (solo sviluppo)
+    console.error("GITHUB_TOKEN non configurato — impossibile salvare su GitHub");
     try { fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2)); } catch {}
     return;
   }
   try {
-    // 1. Leggi SHA del file attuale
-    const getRes = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`, {
-      headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json" }
-    });
+    // 1. Leggi SHA attuale
+    const getRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
+      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
+    );
+    if (!getRes.ok) {
+      const errText = await getRes.text();
+      console.error("GitHub GET error:", getRes.status, errText);
+      return;
+    }
     const fileData = await getRes.json() as any;
     const sha = fileData.sha;
 
-    // 2. Scrivi il nuovo contenuto
+    // 2. Scrivi contenuto aggiornato
     const content = Buffer.from(JSON.stringify(users, null, 2)).toString("base64");
-    await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`, {
-      method: "PUT",
-      headers: {
-        Authorization: `token ${token}`,
-        Accept: "application/vnd.github.v3+json",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        message: "chore: update users permissions",
-        content,
-        sha
-      })
-    });
+    const putRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: "application/vnd.github.v3+json",
+          "Content-Type": "application/json",
+          "User-Agent": "gem-app"
+        },
+        body: JSON.stringify({ message: "chore: update users permissions", content, sha })
+      }
+    );
+    if (!putRes.ok) {
+      const errText = await putRes.text();
+      console.error("GitHub PUT error:", putRes.status, errText);
+    } else {
+      console.log("users.json aggiornato su GitHub con successo");
+    }
   } catch (err) {
-    console.error("Error writing users to GitHub", err);
+    console.error("Error writing users to GitHub:", err);
   }
 }
 
