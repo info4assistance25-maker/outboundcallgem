@@ -138,13 +138,13 @@ app.delete("/api/users/:username", (req, res) => {
 export default app;
 
 app.post("/api/support", async (req, res) => {
-  const { name, email, subject, message } = req.body;
-  if (!subject || !message) {
-    return res.status(400).json({ ok: false, error: "Dati mancanti" });
+  const { name, email, phone, company, subject, message } = req.body;
+  if (!subject || !message || !email || !phone) {
+    return res.status(400).json({ ok: false, error: "Dati mancanti (email, telefono, oggetto e messaggio sono obbligatori)" });
   }
 
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    return res.status(500).json({ ok: false, error: "Credenziali SMTP non configurate. Aggiungile come variabili d'ambiente su Vercel." });
+    return res.status(500).json({ ok: false, error: "Credenziali SMTP non configurate." });
   }
 
   const transporter = nodemailer.createTransport({
@@ -157,14 +157,27 @@ app.post("/api/support", async (req, res) => {
     },
   });
 
+  const subjectLine = `[Supporto Campagne Out] ${name} ${phone}`;
+
+  const html = `
+    <p><strong>Da:</strong> ${name}</p>
+    <p><strong>Email:</strong> ${email}</p>
+    <p><strong>Telefono:</strong> ${phone}</p>
+    ${company ? `<p><strong>Azienda:</strong> ${company}</p>` : ''}
+    <p><strong>Oggetto:</strong> ${subject}</p>
+    <hr>
+    <p><strong>Messaggio:</strong></p>
+    <p>${message.replace(/\n/g, '<br>')}</p>
+  `;
+
   try {
     await transporter.sendMail({
-      from: `"${name || 'GEM Outbound'}" <${process.env.SMTP_USER}>`,
-      replyTo: email || process.env.SMTP_USER,
+      from: `"GEM Campagne Out" <${process.env.SMTP_USER}>`,
+      replyTo: email,
       to: "ticket@gemgroup.odoo.com",
-      subject: `[Supporto] ${subject}`,
-      text: message,
-      html: `<p><strong>Da:</strong> ${name} (${email})</p><p><strong>Messaggio:</strong></p><p>${message.replace(/\n/g, '<br>')}</p>`,
+      subject: subjectLine,
+      text: `Da: ${name}\nEmail: ${email}\nTelefono: ${phone}\n${company ? `Azienda: ${company}\n` : ''}Oggetto: ${subject}\n\n${message}`,
+      html,
     });
     res.json({ ok: true });
   } catch (error) {
