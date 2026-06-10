@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
-import { Play, Calendar, AlertTriangle, Loader2, Trash2, DownloadCloud, Save, Phone, Clock, Filter, X, StickyNote, CheckCircle2 } from 'lucide-react';
+import { Play, AlertTriangle, Loader2, Trash2, DownloadCloud, Save, Phone, Clock, Filter, X, StickyNote, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -14,6 +14,7 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
     testSingleCall, testStatus,
     campaignNote, setCampaignNote,
     businessHoursEnabled, setBusinessHoursEnabled,
+    businessHoursConfig, setBusinessHoursConfig,
     historyFilter, setHistoryFilter, filteredHistory, exportHistoryToXLSX,
     history, clearHistory, saveList,
   } = useCampaign();
@@ -23,6 +24,7 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
   const [listName, setListName] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
+  const [showBhConfig, setShowBhConfig] = useState(false);
   const [testNome, setTestNome] = useState('');
   const [testNumero, setTestNumero] = useState('');
 
@@ -117,33 +119,83 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
             />
           </div>
 
-          {/* Orari consentiti toggle */}
-          <div className="mb-4 flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-slate-500" />
-              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Solo orari lavorativi</span>
-              <span className="text-[10px] text-slate-400">(lun-ven 9-19)</span>
-            </div>
-            <button
-              onClick={() => setBusinessHoursEnabled(!businessHoursEnabled)}
-              className={cn(
-                "relative w-10 h-5 rounded-full transition-colors",
-                businessHoursEnabled ? "bg-brand-600" : "bg-slate-300 dark:bg-slate-600"
+          {/* Orari consentiti — solo se pianificata */}
+          {scheduleMode === 'later' && (
+            <div className="mb-4 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-slate-500" />
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Blocca fuori orario</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowBhConfig(!showBhConfig)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                    {showBhConfig ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => setBusinessHoursEnabled(!businessHoursEnabled)}
+                    className={cn("relative w-10 h-5 rounded-full transition-colors", businessHoursEnabled ? "bg-brand-600" : "bg-slate-300 dark:bg-slate-600")}
+                  >
+                    <span className={cn("absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform", businessHoursEnabled ? "translate-x-5" : "translate-x-0.5")} />
+                  </button>
+                </div>
+              </div>
+              {showBhConfig && (
+                <div className="p-3 border-t border-slate-200 dark:border-slate-700 space-y-3 animate-in fade-in slide-in-from-top-2">
+                  {/* Giorni */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Giorni consentiti</label>
+                    <div className="flex gap-1 flex-wrap">
+                      {[{d:1,l:'Lu'},{d:2,l:'Ma'},{d:3,l:'Me'},{d:4,l:'Gi'},{d:5,l:'Ve'},{d:6,l:'Sa'},{d:0,l:'Do'}].map(({d,l}) => (
+                        <button key={d}
+                          onClick={() => {
+                            const days = businessHoursConfig.days.includes(d)
+                              ? businessHoursConfig.days.filter(x => x !== d)
+                              : [...businessHoursConfig.days, d];
+                            setBusinessHoursConfig({...businessHoursConfig, days});
+                          }}
+                          className={cn("w-8 h-8 rounded-lg text-xs font-bold transition-colors",
+                            businessHoursConfig.days.includes(d)
+                              ? "bg-brand-600 text-white"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"
+                          )}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Ore */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Dalle</label>
+                      <select value={businessHoursConfig.startHour}
+                        onChange={e => setBusinessHoursConfig({...businessHoursConfig, startHour: parseInt(e.target.value)})}
+                        className="w-full px-2 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none dark:text-white">
+                        {Array.from({length:24},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}:00</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Alle</label>
+                      <select value={businessHoursConfig.endHour}
+                        onChange={e => setBusinessHoursConfig({...businessHoursConfig, endHour: parseInt(e.target.value)})}
+                        className="w-full px-2 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none dark:text-white">
+                        {Array.from({length:24},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}:00</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Attivo: {businessHoursConfig.days.length} giorni · {String(businessHoursConfig.startHour).padStart(2,'0')}:00–{String(businessHoursConfig.endHour).padStart(2,'0')}:00
+                  </div>
+                </div>
               )}
-            >
-              <span className={cn(
-                "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
-                businessHoursEnabled ? "translate-x-5" : "translate-x-0.5"
-              )} />
-            </button>
-          </div>
+            </div>
+          )}
 
           {/* Test chiamata singola */}
           <button
             onClick={() => setShowTestModal(!showTestModal)}
             className="w-full mb-3 py-2 text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg flex items-center justify-center gap-2 transition-colors"
           >
-            <Phone className="w-3.5 h-3.5" /> Testa chiamata singola
+            <Phone className="w-3.5 h-3.5" /> {showTestModal ? 'Chiudi test chiamata' : 'Testa chiamata singola'}
           </button>
           {showTestModal && (
             <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800 animate-in fade-in slide-in-from-top-2">
