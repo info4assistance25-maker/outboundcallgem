@@ -1,12 +1,10 @@
 {
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.ts"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/(.*)", "destination": "/api/index.ts" },
+    { "source": "/manifest.json", "destination": "/manifest.json" },
+    { "source": "/sw.js", "destination": "/sw.js" },
+    { "source": "/icon-192.png", "destination": "/icon-192.png" },
+    { "source": "/icon-512.png", "destination": "/icon-512.png" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
