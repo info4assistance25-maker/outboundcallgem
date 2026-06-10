@@ -5,7 +5,7 @@ import { LogIn, Loader2, AlertCircle, KeyRound, ArrowLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export function Login() {
-  const { login, verifyOtp } = useCampaign();
+  const { login, verifyOtp, setUser } = useCampaign();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
@@ -32,9 +32,11 @@ export function Login() {
       setIsOtpStep(true);
       setSetup2FA(res.setup2FA);
       setQrUrl(res.qrUrl);
-      setError(''); // Clear errors
+      setError('');
     } else if (res && res.ok) {
-      // Logged in directly (if 2FA is ever disabled)
+      const loggedUser = { username: res.username, nome: res.nome, role: res.role, isAdmin: res.isAdmin, canSchedule: res.canSchedule };
+      setUser(loggedUser);
+      sessionStorage.setItem('gem_session', JSON.stringify(loggedUser));
     } else {
       setError(res?.error || 'Credenziali non valide');
     }
@@ -185,4 +187,3 @@ export function Login() {
     </div>
   );
 }
-
