@@ -71,7 +71,7 @@ app.get("/api/users", (req, res) => {
     nome: u.nome, 
     password: u.password, 
     role: u.role || (u.isAdmin ? 'Admin' : 'Editor'),
-    canSchedule: u.hasOwnProperty('canSchedule') ? u.canSchedule : true
+    canSchedule: u.canSchedule === true
   }));
   res.json(safeUsers);
 });
@@ -88,7 +88,7 @@ app.post("/api/users", (req, res) => {
     return res.status(400).json({ error: "Username già esistente" });
   }
 
-  users.push({ username, password, nome, role, isAdmin: role === 'Admin', canSchedule: canSchedule !== false });
+  users.push({ username, password, nome, role, isAdmin: role === 'Admin', canSchedule: canSchedule === true });
   writeUsers(users);
 
   res.json({ ok: true });
@@ -115,7 +115,7 @@ app.put("/api/users/:username", (req, res) => {
     nome, 
     role, 
     isAdmin: role === 'Admin' || users[index].username.toLowerCase() === 'admin',
-    canSchedule: canSchedule !== false
+    canSchedule: canSchedule === true
   };
   writeUsers(users);
   
