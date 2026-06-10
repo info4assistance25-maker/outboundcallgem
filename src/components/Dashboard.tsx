@@ -11,6 +11,7 @@ import { AdminUsers } from './AdminUsers';
 
 import { SupportSection } from './SupportSection';
 import { StatsDashboard } from './StatsDashboard';
+import { ProfileSection } from './ProfileSection';
 
 export function Navbar() {
   const { user, darkMode, toggleTheme, logout } = useCampaign();
@@ -67,7 +68,7 @@ export function Dashboard() {
   const isViewer = user?.role === 'Viewer';
   const isAdmin = user?.role === 'Admin' || user?.isAdmin;
   
-  const [activeTab, setActiveTab] = React.useState<'campaign' | 'history' | 'users' | 'lists' | 'support' | 'stats'>(
+  const [activeTab, setActiveTab] = React.useState<'campaign' | 'history' | 'users' | 'lists' | 'support' | 'stats' | 'profile'>(
     isViewer ? 'history' : 'campaign'
   );
 
@@ -78,9 +79,9 @@ export function Dashboard() {
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
         <div className="mb-6 lg:mb-10 pl-1 animate-in fade-in slide-in-from-top-4 duration-500">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-3 font-serif">
-            {activeTab === 'users' ? 'Gestione ' : activeTab === 'lists' ? 'Le Tue ' : isViewer || activeTab === 'history' ? 'Storico ' : activeTab === 'support' ? 'Richiedi ' : activeTab === 'stats' ? 'Dashboard ' : 'Nuova '}
+            {activeTab === 'users' ? 'Gestione ' : activeTab === 'lists' ? 'Le Tue ' : activeTab === 'history' || isViewer ? 'Storico ' : activeTab === 'support' ? 'Richiedi ' : activeTab === 'stats' ? 'Dashboard ' : activeTab === 'profile' ? 'Il Mio ' : 'Nuova '}
             <span className="text-slate-500 dark:text-slate-400 font-serif italic">
-              {activeTab === 'users' ? 'Utenti' : activeTab === 'lists' ? 'Liste' : activeTab === 'support' ? 'Assistenza' : activeTab === 'stats' ? 'Statistiche' : 'Campagna'}
+              {activeTab === 'users' ? 'Utenti' : activeTab === 'lists' ? 'Liste' : activeTab === 'support' ? 'Assistenza' : activeTab === 'stats' ? 'Statistiche' : activeTab === 'profile' ? 'Profilo' : 'Campagna'}
             </span>
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm lg:text-base font-normal max-w-2xl leading-relaxed">
@@ -92,6 +93,8 @@ export function Dashboard() {
               ? 'Invia una richiesta direttamente al nostro team tecnico o amministrativo.'
               : activeTab === 'stats'
               ? 'Panoramica delle campagne, chiamate per operatore e log accessi.'
+              : activeTab === 'profile'
+              ? 'Gestisci le tue informazioni di contatto e le impostazioni del tuo account.'
               : activeTab === 'history' || isViewer 
               ? 'Consulta lo storico delle campagne effettuate e scarica i report associati.'
               : 'Carica la lista contatti, definisci le tempistiche e avvia le chiamate sul centralino Wildix.'}
@@ -163,6 +166,18 @@ export function Dashboard() {
             Statistiche
           </button>
 
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={cn(
+              "px-4 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
+              activeTab === 'profile' 
+                ? "border-brand-500 text-brand-600 dark:text-brand-400" 
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+            )}
+          >
+            Profilo
+          </button>
+
           {isAdmin && (
             <button
               onClick={() => setActiveTab('users')}
@@ -207,6 +222,10 @@ export function Dashboard() {
 
         {activeTab === 'stats' && (
           <StatsDashboard />
+        )}
+
+        {activeTab === 'profile' && (
+          <ProfileSection />
         )}
 
         {activeTab === 'users' && isAdmin && (
