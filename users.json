@@ -21,7 +21,9 @@
     "nome": "Stefano",
     "canSchedule": true,
     "role": "Admin",
-    "isAdmin": true
+    "isAdmin": true,
+    "email": "sferreri@gemgroupsrls.it",
+    "telefono": "+393202554975"
   },
   {
     "username": "emiliano",
