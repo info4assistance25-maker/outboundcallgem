@@ -19,7 +19,9 @@
     "username": "stefano",
     "password": "Gem@2026!",
     "nome": "Stefano",
-    "canSchedule": true
+    "canSchedule": true,
+    "role": "Admin",
+    "isAdmin": true
   },
   {
     "username": "emiliano",
