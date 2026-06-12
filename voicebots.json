@@ -6,5 +6,13 @@
     "context": "outbound-voicebot",
     "descrizione": "Sondaggio clienti standard",
     "attivo": false
+  },
+  {
+    "id": "vb1781276133025",
+    "nome": "Demo Rossi Moto",
+    "exten": 8001,
+    "context": "outbound-voicebot",
+    "descrizione": "",
+    "attivo": true
   }
 ]
