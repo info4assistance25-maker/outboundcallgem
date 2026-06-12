@@ -86,6 +86,13 @@ export function Dashboard() {
     setSidebarOpen(false);
   };
 
+  // Ascolta navigazione da altri componenti (es. link "Vai in Assistenza")
+  React.useEffect(() => {
+    const handler = (e: Event) => handleNav((e as CustomEvent).detail as Tab);
+    window.addEventListener('gem:nav', handler);
+    return () => window.removeEventListener('gem:nav', handler);
+  }, []);
+
   const meta = TAB_META[activeTab];
 
   return (
