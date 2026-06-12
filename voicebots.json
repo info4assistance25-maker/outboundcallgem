@@ -5,7 +5,7 @@
     "exten": 8000,
     "context": "outbound-voicebot",
     "descrizione": "Sondaggio clienti standard",
-    "attivo": true
+    "attivo": false
   },
   {
     "id": "vb1781276133025",
