@@ -22,6 +22,13 @@ interface NavItem {
   viewerHidden?: boolean;
 }
 
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+  adminOnly?: boolean;
+  viewerOnly?: boolean;
+}
+
 const NAV_GROUPS = [
   {
     label: 'Campagne',
@@ -34,7 +41,7 @@ const NAV_GROUPS = [
   {
     label: 'Account',
     items: [
-      { id: 'profile' as Tab, label: 'Il Mio Profilo', icon: User },
+      { id: 'profile' as Tab, label: 'Il Mio Profilo', icon: User, viewerHidden: true },
       { id: 'support' as Tab, label: 'Assistenza', icon: LifeBuoy },
     ]
   },
@@ -45,6 +52,13 @@ const NAV_GROUPS = [
       { id: 'stats' as Tab, label: 'Statistiche', icon: BarChart2, adminOnly: true },
       { id: 'users' as Tab, label: 'Gestione Utenti', icon: Users, adminOnly: true },
       { id: 'voicebots' as Tab, label: 'Voicebot', icon: Phone, adminOnly: true },
+    ]
+  },
+  {
+    label: 'Report',
+    viewerOnly: true,
+    items: [
+      { id: 'stats' as Tab, label: 'Statistiche', icon: BarChart2 },
     ]
   },
 ];
@@ -101,6 +115,7 @@ export function Dashboard() {
           <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
             {NAV_GROUPS.map(group => {
               if (group.adminOnly && !isAdmin) return null;
+              if (group.viewerOnly && !isViewer) return null;
               const visibleItems = group.items.filter(item => {
                 if (item.adminOnly && !isAdmin) return false;
                 if (item.viewerHidden && isViewer) return false;
@@ -236,7 +251,7 @@ export function Dashboard() {
             </div>
           )}
 
-          {activeTab === 'stats' && isAdmin && (
+          {activeTab === 'stats' && (isAdmin || isViewer) && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
               <StatsDashboard />
             </div>
