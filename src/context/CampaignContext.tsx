@@ -295,7 +295,15 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       if (data.ok) {
         const active = data.voicebots.filter((v: Voicebot) => v.attivo);
         setVoicebots(active);
-        if (active.length > 0) setSelectedVoicebot(prev => prev || active[0]);
+        // Auto-seleziona solo se non è ancora stato scelto nulla
+        setSelectedVoicebot(prev => {
+          if (prev) {
+            // Mantieni la selezione corrente se il voicebot esiste ancora
+            const stillExists = active.find((v: Voicebot) => v.id === prev.id);
+            return stillExists || (active.length > 0 ? active[0] : null);
+          }
+          return active.length > 0 ? active[0] : null;
+        });
       }
     } catch {}
   };
