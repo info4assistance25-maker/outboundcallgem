@@ -4,7 +4,8 @@ import { Plus, Pencil, Trash2, Save, X, Phone, CheckCircle2, AlertCircle, Toggle
 import { cn } from '../lib/utils';
 
 export function AdminVoicebots() {
-  const { loadVoicebots } = useCampaign();
+  const { loadVoicebots, user } = useCampaign();
+  const isAdmin = user?.isAdmin || user?.role === 'Admin';
   const [bots, setBots] = useState<Voicebot[]>([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState<string | null>(null);
@@ -118,7 +119,7 @@ export function AdminVoicebots() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <FormRow label="Nome" field="nome" placeholder="Es. Sondaggio Clienti" />
               <FormRow label="Interno Wildix (exten)" field="exten" placeholder="Es. 8000" type="number" />
-              <FormRow label="Contesto (context)" field="context" placeholder="outbound-voicebot" />
+              {isAdmin && <FormRow label="Contesto (context)" field="context" placeholder="outbound-voicebot" />}
               <FormRow label="Descrizione (facoltativa)" field="descrizione" placeholder="Es. Sondaggio post-vendita" />
             </div>
             <div className="flex gap-2">
@@ -146,7 +147,7 @@ export function AdminVoicebots() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <FormRow label="Nome" field="nome" placeholder="Nome voicebot" />
                       <FormRow label="Interno (exten)" field="exten" placeholder="8000" type="number" />
-                      <FormRow label="Contesto" field="context" placeholder="outbound-voicebot" />
+                      {isAdmin && <FormRow label="Contesto" field="context" placeholder="outbound-voicebot" />}
                       <FormRow label="Descrizione" field="descrizione" placeholder="Facoltativa" />
                     </div>
                     <div className="flex gap-2">
@@ -172,8 +173,7 @@ export function AdminVoicebots() {
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">
                         Interno: <span className="font-mono font-semibold">{bot.exten}</span>
-                        <span className="mx-2">·</span>
-                        Context: <span className="font-mono">{bot.context}</span>
+                        {isAdmin && <><span className="mx-2">·</span>Context: <span className="font-mono">{bot.context}</span></>}
                         {bot.descrizione && <><span className="mx-2">·</span>{bot.descrizione}</>}
                       </div>
                     </div>
