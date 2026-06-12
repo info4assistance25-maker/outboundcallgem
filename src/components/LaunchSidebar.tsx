@@ -251,13 +251,21 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
 
           {launchStatus.type !== 'idle' && (
             <div className={cn(
-              "mt-4 p-4 rounded-xl border flex items-center gap-3 text-sm font-medium animate-in fade-in zoom-in-95",
+              "mt-4 p-4 rounded-xl border flex items-start gap-3 text-sm font-medium animate-in fade-in zoom-in-95",
               launchStatus.type === 'ok' && "bg-green-50 border-green-200 text-green-700",
               launchStatus.type === 'err' && "bg-red-50 border-red-200 text-red-700",
               launchStatus.type === 'load' && "bg-brand-50 border-brand-200 text-brand-700"
             )}>
-              {launchStatus.type === 'ok' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : launchStatus.type === 'err' ? <AlertTriangle className="w-5 h-5 shrink-0" /> : <Loader2 className="w-5 h-5 animate-spin shrink-0" />}
-              {launchStatus.msg}
+              {launchStatus.type === 'ok' ? <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" /> : launchStatus.type === 'err' ? <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" /> : <Loader2 className="w-5 h-5 animate-spin shrink-0 mt-0.5" />}
+              <span>
+                {launchStatus.msg.replace(' — Vai in Assistenza per aprire un ticket.', '')}
+                {launchStatus.type === 'err' && (
+                  <> — <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('gem:nav', { detail: 'support' }))}
+                    className="underline font-bold hover:opacity-80 transition-opacity"
+                  >Vai in Assistenza</button> per aprire un ticket.</>
+                )}
+              </span>
             </div>
           )}
         </div>
