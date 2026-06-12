@@ -41,24 +41,22 @@ const NAV_GROUPS = [
   {
     label: 'Account',
     items: [
-      { id: 'profile' as Tab, label: 'Il Mio Profilo', icon: User, viewerHidden: true },
+      { id: 'profile' as Tab, label: 'Il Mio Profilo', icon: User },
       { id: 'support' as Tab, label: 'Assistenza', icon: LifeBuoy },
+    ]
+  },
+  {
+    label: 'Report',
+    items: [
+      { id: 'stats' as Tab, label: 'Statistiche', icon: BarChart2, adminOnly: false },
     ]
   },
   {
     label: 'Amministrazione',
     adminOnly: true,
     items: [
-      { id: 'stats' as Tab, label: 'Statistiche', icon: BarChart2, adminOnly: true },
       { id: 'users' as Tab, label: 'Gestione Utenti', icon: Users, adminOnly: true },
       { id: 'voicebots' as Tab, label: 'Voicebot', icon: Phone, adminOnly: true },
-    ]
-  },
-  {
-    label: 'Report',
-    viewerOnly: true,
-    items: [
-      { id: 'stats' as Tab, label: 'Statistiche', icon: BarChart2 },
     ]
   },
 ];
