@@ -1,0 +1,10 @@
+[
+  {
+    "id": "vb1",
+    "nome": "Voicebot Sondaggio",
+    "exten": 8000,
+    "context": "outbound-voicebot",
+    "descrizione": "Sondaggio clienti standard",
+    "attivo": true
+  }
+]
