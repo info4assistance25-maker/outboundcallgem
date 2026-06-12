@@ -9,6 +9,39 @@ app.use(express.json());
 const USERS_FILE = path.join(process.cwd(), "users.json");
 const GITHUB_REPO = "info4assistance25-maker/outboundcallgem";
 const GITHUB_FILE_PATH = "users.json";
+const VOICEBOTS_FILE_PATH = "voicebots.json";
+const VOICEBOTS_LOCAL = path.join(process.cwd(), "voicebots.json");
+
+function readVoicebots() {
+  try {
+    if (!fs.existsSync(VOICEBOTS_LOCAL)) return [];
+    return JSON.parse(fs.readFileSync(VOICEBOTS_LOCAL, "utf-8"));
+  } catch { return []; }
+}
+
+async function writeVoicebots(bots: any[]) {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    try { fs.writeFileSync(VOICEBOTS_LOCAL, JSON.stringify(bots, null, 2)); } catch {}
+    return;
+  }
+  try {
+    const getRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${VOICEBOTS_FILE_PATH}`,
+      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
+    );
+    const sha = getRes.ok ? (await getRes.json() as any).sha : undefined;
+    const content = Buffer.from(JSON.stringify(bots, null, 2)).toString("base64");
+    await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${VOICEBOTS_FILE_PATH}`,
+      {
+        method: "PUT",
+        headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "Content-Type": "application/json", "User-Agent": "gem-app" },
+        body: JSON.stringify({ message: "chore: update voicebots", content, ...(sha ? { sha } : {}) })
+      }
+    );
+  } catch (err) { console.error("Error writing voicebots to GitHub:", err); }
+}
 
 function readUsers() {
   try {
@@ -242,6 +275,36 @@ app.put("/api/me", async (req, res) => {
   users[idx].email = email || '';
   users[idx].telefono = telefono || '';
   await writeUsers(users);
+  res.json({ ok: true });
+});
+
+// ── VOICEBOT ENDPOINTS ──
+app.get("/api/voicebots", (_req, res) => {
+  res.json({ ok: true, voicebots: readVoicebots() });
+});
+
+app.post("/api/voicebots", async (req, res) => {
+  const { nome, exten, context, descrizione } = req.body;
+  if (!nome || !exten || !context) return res.status(400).json({ ok: false, error: "Nome, interno e contesto sono obbligatori" });
+  const bots = readVoicebots();
+  const id = `vb${Date.now()}`;
+  bots.push({ id, nome, exten: parseInt(exten), context, descrizione: descrizione || "", attivo: true });
+  await writeVoicebots(bots);
+  res.json({ ok: true, id });
+});
+
+app.put("/api/voicebots/:id", async (req, res) => {
+  const bots = readVoicebots();
+  const idx = bots.findIndex((b: any) => b.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ ok: false, error: "Voicebot non trovato" });
+  bots[idx] = { ...bots[idx], ...req.body, id: req.params.id };
+  await writeVoicebots(bots);
+  res.json({ ok: true });
+});
+
+app.delete("/api/voicebots/:id", async (req, res) => {
+  const bots = readVoicebots().filter((b: any) => b.id !== req.params.id);
+  await writeVoicebots(bots);
   res.json({ ok: true });
 });
 
