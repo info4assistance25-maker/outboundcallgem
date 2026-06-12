@@ -13,6 +13,6 @@
     "exten": 8001,
     "context": "outbound-voicebot",
     "descrizione": "",
-    "attivo": true
+    "attivo": false
   }
 ]
