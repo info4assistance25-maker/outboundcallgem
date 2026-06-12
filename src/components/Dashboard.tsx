@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
 import { GemLogo } from './Icons';
-import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Menu, X, ChevronRight } from 'lucide-react';
+import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Step1Upload, Step2Preview, Step3Settings } from './CampaignSteps';
 import { LaunchSidebar } from './LaunchSidebar';
 import { ContactLists } from './ContactLists';
 import { AdminUsers } from './AdminUsers';
+import { AdminVoicebots } from './AdminVoicebots';
 import { SupportSection } from './SupportSection';
 import { StatsDashboard } from './StatsDashboard';
 import { ProfileSection } from './ProfileSection';
 
-type Tab = 'campaign' | 'lists' | 'history' | 'profile' | 'support' | 'stats' | 'users';
+type Tab = 'campaign' | 'lists' | 'history' | 'profile' | 'support' | 'stats' | 'users' | 'voicebots';
 
 interface NavItem {
   id: Tab;
@@ -43,6 +44,7 @@ const NAV_GROUPS = [
     items: [
       { id: 'stats' as Tab, label: 'Statistiche', icon: BarChart2, adminOnly: true },
       { id: 'users' as Tab, label: 'Gestione Utenti', icon: Users, adminOnly: true },
+      { id: 'voicebots' as Tab, label: 'Voicebot', icon: Phone, adminOnly: true },
     ]
   },
 ];
@@ -55,6 +57,7 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   support: { title: 'Assistenza', subtitle: 'Invia una richiesta direttamente al nostro team tecnico o amministrativo.' },
   stats: { title: 'Statistiche', subtitle: 'Panoramica delle campagne, chiamate per operatore e log accessi.' },
   users: { title: 'Gestione Utenti', subtitle: 'Gestisci accessi, ruoli e permessi per gli utenti della piattaforma.' },
+  voicebots: { title: 'Gestione Voicebot', subtitle: 'Configura i voicebot disponibili sul centralino Wildix per le campagne.' },
 };
 
 export function Dashboard() {
@@ -242,6 +245,12 @@ export function Dashboard() {
           {activeTab === 'users' && isAdmin && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
               <AdminUsers />
+            </div>
+          )}
+
+          {activeTab === 'voicebots' && isAdmin && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <AdminVoicebots />
             </div>
           )}
 
