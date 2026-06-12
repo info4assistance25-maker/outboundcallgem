@@ -77,11 +77,14 @@ export function AdminVoicebots() {
   };
 
   const handleToggle = async (bot: Voicebot) => {
-    await fetch(`/api/voicebots/${bot.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...bot, attivo: !bot.attivo })
-    });
+    const updated = bots.map((b: Voicebot) => ({ ...b, attivo: b.id === bot.id ? !bot.attivo : false }));
+    await Promise.all(updated.map(b =>
+      fetch(`/api/voicebots/${b.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(b)
+      })
+    ));
     load(); loadVoicebots();
   };
 
