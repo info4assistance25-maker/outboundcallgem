@@ -76,11 +76,13 @@ export function Dashboard() {
   const { user, darkMode, toggleTheme, logout } = useCampaign();
   const isAdmin = user?.isAdmin || user?.role === 'Admin';
   const isViewer = user?.role === 'Viewer';
-  const [activeTab, setActiveTab] = useState<Tab>(isViewer ? 'history' : 'campaign');
+  const savedTab = sessionStorage.getItem('gem_active_tab') as Tab | null;
+  const [activeTab, setActiveTab] = useState<Tab>(savedTab || (isViewer ? 'history' : 'campaign'));
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleNav = (tab: Tab) => {
     setActiveTab(tab);
+    sessionStorage.setItem('gem_active_tab', tab);
     setSidebarOpen(false);
   };
 
