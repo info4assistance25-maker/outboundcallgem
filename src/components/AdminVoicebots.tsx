@@ -3,6 +3,21 @@ import { useCampaign, Voicebot } from '../context/CampaignContext';
 import { Plus, Pencil, Trash2, Save, X, Phone, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+function FormRow({ label, field, placeholder, type = 'text', form, setForm }: any) {
+  return (
+    <div>
+      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{label}</label>
+      <input
+        type={type}
+        value={form[field]}
+        onChange={e => setForm((prev: any) => ({ ...prev, [field]: e.target.value }))}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-brand-500 dark:text-white"
+      />
+    </div>
+  );
+}
+
 export function AdminVoicebots() {
   const { loadVoicebots, user } = useCampaign();
   const isAdmin = user?.isAdmin || user?.role === 'Admin';
@@ -76,19 +91,6 @@ export function AdminVoicebots() {
     setShowNew(false);
   };
 
-  const FormRow = ({ label, field, placeholder, type = 'text' }: any) => (
-    <div>
-      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{label}</label>
-      <input
-        type={type}
-        value={form[field]}
-        onChange={e => setForm({ ...form, [field]: e.target.value })}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-brand-500 dark:text-white"
-      />
-    </div>
-  );
-
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
       {status && (
@@ -117,10 +119,10 @@ export function AdminVoicebots() {
           <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-brand-50 dark:bg-brand-900/10 animate-in fade-in slide-in-from-top-2">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">Nuovo Voicebot</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <FormRow label="Nome" field="nome" placeholder="Es. Sondaggio Clienti" />
-              <FormRow label="Interno Wildix (exten)" field="exten" placeholder="Es. 8000" type="number" />
-              {isAdmin && <FormRow label="Contesto (context)" field="context" placeholder="outbound-voicebot" />}
-              <FormRow label="Descrizione (facoltativa)" field="descrizione" placeholder="Es. Sondaggio post-vendita" />
+              <FormRow label="Nome" field="nome" placeholder="Es. Sondaggio Clienti" form={form} setForm={setForm} />
+              <FormRow label="Interno Wildix (exten)" field="exten" placeholder="Es. 8000" type="number" form={form} setForm={setForm} />
+              {isAdmin && <FormRow label="Contesto (context)" field="context" placeholder="outbound-voicebot" form={form} setForm={setForm} />}
+              <FormRow label="Descrizione (facoltativa)" field="descrizione" placeholder="Es. Sondaggio post-vendita" form={form} setForm={setForm} />
             </div>
             <div className="flex gap-2">
               <button onClick={handleSaveNew} className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold rounded-xl transition-colors">
@@ -145,10 +147,10 @@ export function AdminVoicebots() {
                 {editId === bot.id ? (
                   <div className="p-5 bg-slate-50 dark:bg-slate-800/30 animate-in fade-in">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <FormRow label="Nome" field="nome" placeholder="Nome voicebot" />
-                      <FormRow label="Interno (exten)" field="exten" placeholder="8000" type="number" />
-                      {isAdmin && <FormRow label="Contesto" field="context" placeholder="outbound-voicebot" />}
-                      <FormRow label="Descrizione" field="descrizione" placeholder="Facoltativa" />
+                      <FormRow label="Nome" field="nome" placeholder="Nome voicebot" form={form} setForm={setForm} />
+                      <FormRow label="Interno (exten)" field="exten" placeholder="8000" type="number" form={form} setForm={setForm} />
+                      {isAdmin && <FormRow label="Contesto" field="context" placeholder="outbound-voicebot" form={form} setForm={setForm} />}
+                      <FormRow label="Descrizione" field="descrizione" placeholder="Facoltativa" form={form} setForm={setForm} />
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => handleSaveEdit(bot.id)} className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold rounded-xl transition-colors">
