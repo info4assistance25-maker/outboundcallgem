@@ -2,6 +2,15 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { isValidPhoneNumber } from '../lib/utils';
 import * as XLSX from 'xlsx';
 
+export interface Voicebot {
+  id: string;
+  nome: string;
+  exten: number;
+  context: string;
+  descrizione?: string;
+  attivo: boolean;
+}
+
 export interface User {
   username: string;
   nome: string;
@@ -80,6 +89,11 @@ interface CampaignContextType {
   
   campaignNote: string;
   setCampaignNote: (n: string) => void;
+
+  voicebots: Voicebot[];
+  selectedVoicebot: Voicebot | null;
+  setSelectedVoicebot: (v: Voicebot | null) => void;
+  loadVoicebots: () => Promise<void>;
   businessHoursEnabled: boolean;
   setBusinessHoursEnabled: (v: boolean) => void;
   businessHoursConfig: { days: number[]; startHour: number; endHour: number };
@@ -117,6 +131,8 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [launchStatus, setLaunchStatus] = useState<{ type: 'idle' | 'load' | 'ok' | 'err', msg: string }>({ type: 'idle', msg: '' });
   const [testStatus, setTestStatus] = useState<{ type: 'idle' | 'load' | 'ok' | 'err', msg: string }>({ type: 'idle', msg: '' });
   const [campaignNote, setCampaignNote] = useState('');
+  const [voicebots, setVoicebots] = useState<Voicebot[]>([]);
+  const [selectedVoicebot, setSelectedVoicebot] = useState<Voicebot | null>(null);
   const [businessHoursEnabled, setBusinessHoursEnabled] = useState(false);
   const [businessHoursConfig, setBusinessHoursConfig] = useState({ days: [1,2,3,4,5], startHour: 9, endHour: 19 });
   const [historyFilter, setHistoryFilter] = useState({ operator: '', dateFrom: '', dateTo: '' });
@@ -136,10 +152,11 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     if (lst) setLists(JSON.parse(lst));
 
     const theme = localStorage.getItem('gem_theme');
-    if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    if (theme === 'dark') {
       document.documentElement.classList.add('dark');
       setDarkMode(true);
     }
+    loadVoicebots();
   }, []);
 
   const login = async (u: string, p: string) => {
@@ -271,6 +288,18 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const loadVoicebots = async () => {
+    try {
+      const res = await fetch('/api/voicebots');
+      const data = await res.json();
+      if (data.ok) {
+        const active = data.voicebots.filter((v: Voicebot) => v.attivo);
+        setVoicebots(active);
+        if (active.length > 0) setSelectedVoicebot(prev => prev || active[0]);
+      }
+    } catch {}
+  };
+
   // Business hours check — usa la config personalizzata
   const isBusinessHours = () => {
     const now = new Date();
@@ -368,6 +397,9 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
             operatore: user?.nome,
             fonte: 'gem-dashboard-react',
             note: campaignNote || undefined,
+            voicebot_nome: selectedVoicebot?.nome,
+            voicebot_exten: selectedVoicebot?.exten || 8000,
+            voicebot_context: selectedVoicebot?.context || 'outbound-voicebot',
             chunk: idx + 1,
             chunks_totali: chunks.length
           })
@@ -401,6 +433,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       isLaunching, launchStatus, launchCampaign,
       testSingleCall, testStatus,
       campaignNote, setCampaignNote,
+      voicebots, selectedVoicebot, setSelectedVoicebot, loadVoicebots,
       businessHoursEnabled, setBusinessHoursEnabled,
       businessHoursConfig, setBusinessHoursConfig,
       historyFilter, setHistoryFilter, filteredHistory, exportHistoryToXLSX,
