@@ -345,6 +345,7 @@ export function Step3Settings() {
   if (contacts.length === 0) return null;
 
   const canSchedule = user?.canSchedule !== false;
+  const isAdmin = user?.isAdmin || user?.role === 'Admin';
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -439,7 +440,7 @@ export function Step3Settings() {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">{vb.nome}</div>
                     {vb.descrizione && <div className="text-xs text-slate-500 truncate">{vb.descrizione}</div>}
-                    <div className="text-xs text-slate-400 font-mono">ctx: {vb.context}</div>
+                    {isAdmin && <div className="text-xs text-slate-400 font-mono">interno: {vb.exten} · ctx: {vb.context}</div>}
                   </div>
                   {selectedVoicebot?.id === vb.id && (
                     <div className="w-2 h-2 rounded-full bg-brand-500 shrink-0" />
