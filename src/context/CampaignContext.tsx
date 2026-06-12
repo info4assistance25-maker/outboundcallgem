@@ -341,6 +341,8 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     XLSX.writeFile(wb, `Storico_Campagne_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.xlsx`);
   };
 
+  const SUPPORT_HINT = ' — Vai in Assistenza per aprire un ticket.';
+
   // Test single call
   const testSingleCall = async (contact: Contact) => {
     setTestStatus({ type: 'load', msg: `Test chiamata a ${contact.nome} (${contact.numero})...` });
@@ -360,9 +362,9 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
         })
       });
       if (res.ok) setTestStatus({ type: 'ok', msg: `✓ Chiamata test inviata a ${contact.nome}` });
-      else setTestStatus({ type: 'err', msg: `Errore HTTP ${res.status}` });
+      else setTestStatus({ type: 'err', msg: `Errore HTTP ${res.status}${SUPPORT_HINT}` });
     } catch(e: any) {
-      setTestStatus({ type: 'err', msg: 'Errore di rete: ' + e.message });
+      setTestStatus({ type: 'err', msg: 'Errore di rete: ' + e.message + SUPPORT_HINT });
     }
     setTimeout(() => setTestStatus({ type: 'idle', msg: '' }), 5000);
   };
@@ -422,10 +424,10 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
         // Notifica email completamento (fire and forget)
         fetch('/api/notify-campaign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operatore: user?.nome, count: validContacts.length, scheduledAt: targetAt, note: campaignNote || undefined }) }).catch(() => {});
       } else {
-        setLaunchStatus({ type: 'err', msg: `${okCount}/${chunks.length} blocchi inviati correttamente.` });
+        setLaunchStatus({ type: 'err', msg: `${okCount}/${chunks.length} blocchi inviati correttamente${SUPPORT_HINT}` });
       }
     } catch(err: any) {
-      setLaunchStatus({ type: 'err', msg: 'Errore di rete: ' + err.message });
+      setLaunchStatus({ type: 'err', msg: 'Errore di rete: ' + err.message + SUPPORT_HINT });
     } finally {
       setIsLaunching(false);
     }
