@@ -30,8 +30,8 @@
     "password": "Torino.1",
     "nome": "Emiliano",
     "canSchedule": true,
-    "role": "Editor",
-    "isAdmin": false,
+    "role": "Admin",
+    "isAdmin": true,
     "email": "ebattaglia@gemgroupsrls.it",
     "telefono": ""
   },
