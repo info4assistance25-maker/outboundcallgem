@@ -22,5 +22,13 @@
     "context": "outbound-voicebot",
     "descrizione": "",
     "attivo": true
+  },
+  {
+    "id": "vb1782225261791",
+    "nome": "Conferma App Cossinia",
+    "exten": 9000,
+    "context": "outbound-voicebot",
+    "descrizione": "",
+    "attivo": true
   }
 ]
