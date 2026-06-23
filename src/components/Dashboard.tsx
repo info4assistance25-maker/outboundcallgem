@@ -3,7 +3,7 @@ import { useCampaign } from '../context/CampaignContext';
 import { GemLogo } from './Icons';
 import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { Step1Upload, Step2Preview, Step3Settings } from './CampaignSteps';
+import { Step1Upload, Step2Preview } from './CampaignSteps';
 import { AppuntamentiSection } from './AppuntamentiSection';
 import { LaunchSidebar } from './LaunchSidebar';
 import { ContactLists } from './ContactLists';
@@ -76,7 +76,7 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
 };
 
 export function Dashboard() {
-  const { user, darkMode, toggleTheme, logout } = useCampaign();
+  const { user, darkMode, toggleTheme, logout, setCampaignType, setContacts } = useCampaign();
   const isAdmin = user?.isAdmin || user?.role === 'Admin';
   const isViewer = user?.role === 'Viewer';
   const savedTab = sessionStorage.getItem('gem_active_tab') as Tab | null;
@@ -87,6 +87,14 @@ export function Dashboard() {
     setActiveTab(tab);
     sessionStorage.setItem('gem_active_tab', tab);
     setSidebarOpen(false);
+
+    if (tab === 'appointments') {
+      setCampaignType('appuntamenti');
+      setContacts([]);
+    } else if (tab === 'campaign') {
+      setCampaignType('standard');
+      setContacts([]);
+    }
   };
 
   React.useEffect(() => {
@@ -219,7 +227,6 @@ export function Dashboard() {
               <div className="space-y-6 lg:col-span-2">
                 <AppuntamentiSection />
                 <Step2Preview />
-                <Step3Settings />
               </div>
               <div className="lg:col-span-1 lg:border-l border-slate-200 dark:border-slate-800/50 lg:pl-8">
                 <LaunchSidebar mode="launch" />
@@ -232,7 +239,6 @@ export function Dashboard() {
               <div className="space-y-6 lg:col-span-2">
                 <Step1Upload />
                 <Step2Preview />
-                <Step3Settings />
               </div>
               <div className="lg:col-span-1 lg:border-l border-slate-200 dark:border-slate-800/50 lg:pl-8">
                 <LaunchSidebar mode="launch" />
