@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
 import { GemLogo } from './Icons';
-import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight } from 'lucide-react';
+import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Step1Upload, Step2Preview, Step3Settings } from './CampaignSteps';
 import { LaunchSidebar } from './LaunchSidebar';
@@ -12,7 +12,7 @@ import { SupportSection } from './SupportSection';
 import { StatsDashboard } from './StatsDashboard';
 import { ProfileSection } from './ProfileSection';
 
-type Tab = 'campaign' | 'lists' | 'history' | 'profile' | 'support' | 'stats' | 'users' | 'voicebots';
+type Tab = 'campaign' | 'appointments' | 'lists' | 'history' | 'profile' | 'support' | 'stats' | 'users' | 'voicebots';
 
 interface NavItem {
   id: Tab;
@@ -34,6 +34,7 @@ const NAV_GROUPS = [
     label: 'Campagne',
     items: [
       { id: 'campaign' as Tab, label: 'Nuova Campagna', icon: Plus, viewerHidden: true },
+      { id: 'appointments' as Tab, label: 'Conferma Appuntamenti', icon: CalendarCheck, viewerHidden: true },
       { id: 'lists' as Tab, label: 'Liste Salvate', icon: List, viewerHidden: true },
       { id: 'history' as Tab, label: 'Storico Chiamate', icon: Clock },
     ]
@@ -63,6 +64,7 @@ const NAV_GROUPS = [
 
 const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   campaign: { title: 'Nuova Campagna', subtitle: 'Carica la lista contatti, definisci le tempistiche e avvia le chiamate sul centralino Wildix.' },
+  appointments: { title: 'Conferma Appuntamenti', subtitle: 'Visualizza e gestisci gli appuntamenti programmati per le campagne di richiamata.' },
   lists: { title: 'Liste Salvate', subtitle: 'Salva, gestisci o riutilizza le tue liste contatti precedentemente caricate.' },
   history: { title: 'Storico Chiamate', subtitle: 'Consulta lo storico delle campagne effettuate e scarica i report associati.' },
   profile: { title: 'Il Mio Profilo', subtitle: 'Gestisci le tue informazioni di contatto e le impostazioni del tuo account.' },
@@ -221,6 +223,13 @@ export function Dashboard() {
         {/* Content */}
         <main className="flex-1 px-6 lg:px-10 py-8">
 
+          {activeTab === 'appointments' && !isViewer && (
+            <div className="flex flex-col items-center justify-center py-20 text-center text-slate-400 dark:text-slate-500 space-y-3">
+              <CalendarCheck className="w-12 h-12 opacity-40" />
+              <p className="text-lg font-medium">Sezione in arrivo</p>
+              <p className="text-sm">La gestione degli appuntamenti sarà disponibile a breve.</p>
+            </div>
+          )}
           {activeTab === 'campaign' && !isViewer && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-in fade-in slide-in-from-bottom-4 duration-300">
               <div className="space-y-6 lg:col-span-2">
