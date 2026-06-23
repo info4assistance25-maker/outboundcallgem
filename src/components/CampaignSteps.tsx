@@ -200,7 +200,7 @@ export function Step1Upload() {
           { id: 'csv', icon: FileText, label: 'CSV' },
           { id: 'xls', icon: FileSpreadsheet, label: 'Excel' },
           { id: 'manual', icon: Keyboard, label: 'Manuale' },
-          { id: 'appuntamenti', icon: FileSpreadsheet, label: '📅 Appuntamenti' },
+          { id: 'appuntamenti', icon: FileSpreadsheet, label: 'Appuntamenti' },
         ].map((tab) => {
           const isActive = uploadMode === tab.id;
           return (
@@ -350,7 +350,7 @@ export function Step1Upload() {
         {uploadMode === 'appuntamenti' && (
           <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-4 py-3 rounded-xl text-sm font-medium text-blue-700 dark:text-blue-300">
-              📅 <strong>Formato richiesto:</strong> Colonne <code>Nome</code>, <code>Numero</code>, <code>Data</code> (gg/mm/aaaa), <code>Ora</code> (HH:MM)
+              <strong>Formato richiesto:</strong> Colonne <code>Nome</code>, <code>Numero</code>, <code>Data</code> (gg/mm/aaaa), <code>Ora</code> (HH:MM)
             </div>
             <div
               className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-8 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50/50 dark:hover:bg-brand-900/10 transition-all group"
