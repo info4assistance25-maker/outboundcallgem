@@ -5,10 +5,9 @@ import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
 
 export function Step1Upload() {
-  const { user, uploadMode, setUploadMode, setContacts, updateManualContacts, contacts, campaignType, setCampaignType } = useCampaign();
+  const { user, uploadMode, setUploadMode, setContacts, updateManualContacts, contacts } = useCampaign();
   const fileInputRefCsv = useRef<HTMLInputElement>(null);
   const fileInputRefXls = useRef<HTMLInputElement>(null);
-  const fileInputRefApp = useRef<HTMLInputElement>(null);
 
   const isViewer = user?.role === 'Viewer';
 
@@ -74,111 +73,9 @@ export function Step1Upload() {
     }
   };
 
-  const downloadAppointmentTemplate = () => {
-    const ws = XLSX.utils.aoa_to_sheet([
-      ['Nome', 'Numero', 'Data', 'Ora'],
-      ['Mario Rossi', '+393331234567', '22/06/2026', '10:00'],
-      ['Giulia Bianchi', '+393334567890', '22/06/2026', '11:30'],
-    ]);
-    ws['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 10 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Appuntamenti');
-    XLSX.writeFile(wb, 'template_appuntamenti.xlsx');
-  };
-
-  const handleAppointmentExcel = (file: File) => {
-    if (!file || isViewer) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        if (!e.target?.result) return;
-        // Use raw:true to get raw Excel values (serial numbers) for proper date/time handling
-        const wb = XLSX.read(e.target.result, { type: 'array', raw: true });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '', raw: true });
-        const out = [];
-
-        // Convert Excel serial date number to dd/mm/yyyy
-        // Excel epoch: Jan 1, 1900 = serial 1 (with leap year bug: serial 60 = Feb 29, 1900 which didn't exist)
-        const excelSerialToDate = (serial: number): string => {
-          const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
-          const date = new Date(excelEpoch.getTime() + serial * 86400000);
-          const dd = String(date.getDate()).padStart(2, '0');
-          const mm = String(date.getMonth() + 1).padStart(2, '0');
-          const yyyy = date.getFullYear();
-          return `${dd}/${mm}/${yyyy}`;
-        };
-
-        const formatDate = (val: any): string => {
-          if (!val && val !== 0) return '';
-          // Already formatted as dd/mm/yyyy
-          const s = String(val).trim();
-          if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
-          // Excel serial number (integer)
-          const num = parseFloat(s);
-          if (!isNaN(num) && num > 40000 && num < 60000) {
-            return excelSerialToDate(Math.floor(num));
-          }
-          // Try JS Date parsing as fallback
-          const d = new Date(s);
-          if (!isNaN(d.getTime())) {
-            const dd = String(d.getUTCDate()).padStart(2, '0');
-            const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-            const yyyy = d.getUTCFullYear();
-            return `${dd}/${mm}/${yyyy}`;
-          }
-          return s;
-        };
-
-        const formatTime = (val: any): string => {
-          if (!val && val !== 0) return '';
-          const s = String(val).trim();
-          // Already formatted as HH:MM
-          if (/^\d{1,2}:\d{2}$/.test(s)) return s.padStart(5, '0');
-          // Excel fractional time (0.4166... = 10:00)
-          const num = parseFloat(s);
-          if (!isNaN(num) && num >= 0 && num < 1) {
-            const totalMinutes = Math.round(num * 24 * 60);
-            const hh = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
-            const mm = String(totalMinutes % 60).padStart(2, '0');
-            return `${hh}:${mm}`;
-          }
-          return s;
-        };
-
-        for (const row of rows) {
-          const nome = String(row[0] || '').trim();
-          const numero = String(row[1] || '').trim();
-          const data = formatDate(row[2]);
-          const ora = formatTime(row[3]);
-          if (!nome || !numero) continue;
-          if (['nome', 'name'].includes(nome.toLowerCase())) continue;
-          out.push({ id: crypto.randomUUID(), nome, numero, data_appuntamento: data, ora_appuntamento: ora });
-        }
-        setCampaignType('appuntamenti');
-        setContacts([]);
-        updateManualContacts(out);
-      } catch (err: any) {
-        alert('Errore lettura Excel: ' + err.message);
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
   const handleManualRowAdd = () => {
     if (isViewer) return;
     updateManualContacts([...contacts, { id: crypto.randomUUID(), nome: '', numero: '' }]);
-  };
-
-  const handleManualAppointmentAdd = () => {
-    if (isViewer) return;
-    setCampaignType('appuntamenti');
-    updateManualContacts([...contacts, { id: crypto.randomUUID(), nome: '', numero: '', data_appuntamento: '', ora_appuntamento: '' }]);
-  };
-
-  const updateAppointmentRow = (id: string, field: 'nome' | 'numero' | 'data_appuntamento' | 'ora_appuntamento', val: string) => {
-    if (isViewer) return;
-    updateManualContacts(contacts.map(c => c.id === id ? { ...c, [field]: val } : c));
   };
 
   const updateManualRow = (id: string, field: 'nome' | 'numero', val: string) => {
@@ -194,13 +91,11 @@ export function Step1Upload() {
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft overflow-hidden">
-      {/* Tabs */}
       <div className="flex bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
         {[
           { id: 'csv', icon: FileText, label: 'CSV' },
           { id: 'xls', icon: FileSpreadsheet, label: 'Excel' },
           { id: 'manual', icon: Keyboard, label: 'Manuale' },
-          { id: 'appuntamenti', icon: FileSpreadsheet, label: 'Appuntamenti' },
         ].map((tab) => {
           const isActive = uploadMode === tab.id;
           return (
@@ -222,7 +117,6 @@ export function Step1Upload() {
       </div>
 
       <div className="p-6">
-        {/* CSV & Excel Panels */}
         {(uploadMode === 'csv' || uploadMode === 'xls') && (
           <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
             {isViewer ? (
@@ -280,7 +174,6 @@ export function Step1Upload() {
           </div>
         )}
 
-        {/* Manual Panel */}
         {uploadMode === 'manual' && (
           <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="bg-accent-50 dark:bg-accent-500/10 border border-accent-400/30 text-accent-600 dark:text-accent-400 px-4 py-3 rounded-xl text-sm font-medium">
@@ -345,83 +238,6 @@ export function Step1Upload() {
             </div>
           </div>
         )}
-
-        {/* Appointment Panel */}
-        {uploadMode === 'appuntamenti' && (
-          <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-4 py-3 rounded-xl text-sm font-medium text-blue-700 dark:text-blue-300">
-              <strong>Formato richiesto:</strong> Colonne <code>Nome</code>, <code>Numero</code>, <code>Data</code> (gg/mm/aaaa), <code>Ora</code> (HH:MM)
-            </div>
-            <div
-              className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-8 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50/50 dark:hover:bg-brand-900/10 transition-all group"
-              onClick={() => !isViewer && fileInputRefApp.current?.click()}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleAppointmentExcel(file); }}
-            >
-              <UploadCloud className="w-10 h-10 mx-auto mb-3 text-slate-400 group-hover:text-brand-500 transition-colors" />
-              <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">Carica Excel appuntamenti</p>
-              <p className="text-xs text-slate-500">Trascina qui o clicca per selezionare (.xlsx)</p>
-              <input type="file" accept=".xlsx,.xls" ref={fileInputRefApp} className="hidden"
-                onChange={e => { const file = e.target.files?.[0]; if (file) handleAppointmentExcel(file); e.target.value = ''; }} />
-            </div>
-            <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>4 colonne: Nome | Numero | Data | Ora</span>
-              <button onClick={downloadAppointmentTemplate}
-                className="flex items-center gap-1.5 text-brand-600 dark:text-brand-400 hover:underline font-semibold">
-                <DownloadCloud className="w-3.5 h-3.5" /> Scarica template
-              </button>
-            </div>
-
-            <div className="relative flex items-center gap-3 py-1">
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">oppure inserisci manualmente</span>
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
-            </div>
-
-            {contacts.length > 0 && (
-              <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-                <div className="grid grid-cols-[1.3fr_1.3fr_1fr_0.8fr_40px] bg-slate-50 dark:bg-slate-800/80 p-3 border-b border-slate-200 dark:border-slate-700 gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  <span>Nome</span><span>Numero</span><span>Data</span><span>Ora</span><span />
-                </div>
-                <div className="max-h-[280px] overflow-y-auto">
-                  {contacts.map(c => (
-                    <div key={c.id} className="grid grid-cols-[1.3fr_1.3fr_1fr_0.8fr_40px] gap-2 px-3 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0 items-center hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                      <input type="text" placeholder="Mario Rossi" value={c.nome} disabled={isViewer}
-                        onChange={e => updateAppointmentRow(c.id, 'nome', e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 px-2 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 focus:border-brand-500 focus:outline-none text-slate-900 dark:text-slate-100" />
-                      <input type="text" placeholder="+39..." value={c.numero} disabled={isViewer}
-                        onChange={e => updateAppointmentRow(c.id, 'numero', e.target.value)}
-                        className={cn("w-full bg-white dark:bg-slate-900 px-2 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 focus:border-brand-500 focus:outline-none text-slate-900 dark:text-slate-100",
-                          c.inv && c.numero.length > 3 && "!border-red-400 !bg-red-50 dark:!bg-red-900/20")} />
-                      <input type="text" placeholder="gg/mm/aaaa" value={c.data_appuntamento || ''} disabled={isViewer}
-                        onChange={e => updateAppointmentRow(c.id, 'data_appuntamento', e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 px-2 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 focus:border-brand-500 focus:outline-none text-slate-900 dark:text-slate-100" />
-                      <input type="text" placeholder="HH:MM" value={c.ora_appuntamento || ''} disabled={isViewer}
-                        onChange={e => updateAppointmentRow(c.id, 'ora_appuntamento', e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 px-2 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 focus:border-brand-500 focus:outline-none text-slate-900 dark:text-slate-100" />
-                      {!isViewer && (
-                        <button onClick={() => deleteManualRow(c.id)}
-                          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-500 font-medium">
-                  {contacts.length} appuntamenti
-                </div>
-              </div>
-            )}
-
-            {!isViewer && (
-              <button onClick={handleManualAppointmentAdd}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-brand-600 dark:text-brand-400 font-semibold text-sm border border-slate-200 dark:border-slate-700 rounded-xl transition-colors">
-                <Plus className="w-4 h-4" /> Aggiungi appuntamento manualmente
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -431,7 +247,7 @@ export function Step2Preview() {
   const { contacts, validContacts, invalidCount, duplicateCount, campaignType } = useCampaign();
   const [searchTerm, setSearchTerm] = useState('');
   const isAppointment = campaignType === 'appuntamenti';
-    if (contacts.length === 0) return null;
+  if (contacts.length === 0) return null;
 
   const filteredContacts = contacts.filter(c => 
     String(c.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -518,144 +334,6 @@ export function Step2Preview() {
               + altri {contacts.length - 30} contatti
             </div>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function Step3Settings() {
-  const { user, contacts, scheduleMode, setScheduleMode, scheduledAt, setScheduledAt, concurrency, setConcurrency, voicebots, selectedVoicebot, setSelectedVoicebot } = useCampaign();
-
-  if (contacts.length === 0) return null;
-
-  const canSchedule = user?.canSchedule !== false;
-  const isAdmin = user?.isAdmin || user?.role === 'Admin';
-
-  return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
-      <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3 bg-slate-50 dark:bg-slate-800/30">
-        <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-700/50 text-brand-700 dark:text-brand-300 flex items-center justify-center font-display font-bold">3</div>
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display">Impostazioni di Invio</h2>
-      </div>
-
-      <div className="p-6 space-y-8">
-        <div>
-           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button
-              onClick={() => setScheduleMode('now')}
-              className={cn(
-                "p-4 rounded-xl border-2 text-left transition-all",
-                scheduleMode === 'now' 
-                  ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20" 
-                  : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
-              )}
-            >
-              <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors", scheduleMode === 'now' ? "bg-brand-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500")}>
-                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-none stroke-current stroke-2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              </div>
-              <h4 className="font-bold text-slate-900 dark:text-white mb-1">Avvia Subito</h4>
-              <p className="text-xs text-slate-500">La campagna parte immediatamente</p>
-            </button>
-
-            <button
-              disabled={!canSchedule}
-              onClick={() => setScheduleMode('later')}
-              className={cn(
-                "p-4 rounded-xl border-2 text-left transition-all relative",
-                !canSchedule ? "opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50" :
-                scheduleMode === 'later' 
-                  ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20" 
-                  : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
-              )}
-            >
-              {!canSchedule && (
-                <div className="absolute top-3 right-3 text-red-500">
-                  <AlertTriangle className="w-5 h-5" title="Schedulazione disabilitata per questo utente" />
-                </div>
-              )}
-              <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors", scheduleMode === 'later' ? "bg-brand-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500")}>
-                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-none stroke-current stroke-2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              </div>
-              <h4 className="font-bold text-slate-900 dark:text-white mb-1">Pianifica Orario</h4>
-              <p className="text-xs text-slate-500">Scegli la data e l'ora desiderata</p>
-            </button>
-          </div>
-
-          {scheduleMode === 'later' && canSchedule && (
-            <div className="mt-4 p-4 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 animate-in fade-in slide-in-from-top-2">
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Data e Ora di Avvio</label>
-              <input 
-                type="datetime-local" 
-                value={scheduledAt}
-                onChange={e => setScheduledAt(e.target.value)}
-                className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 dark:focus:border-brand-400 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
-            Voicebot
-          </label>
-          {voicebots.length === 0 ? (
-            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-sm text-amber-700 dark:text-amber-400">
-              Nessun voicebot configurato. Vai in Amministrazione → Voicebot per aggiungerne uno.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-2">
-              {voicebots.map(vb => (
-                <button
-                  key={vb.id}
-                  onClick={() => setSelectedVoicebot(vb)}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all",
-                    selectedVoicebot?.id === vb.id
-                      ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20"
-                      : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                  )}
-                >
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold",
-                    selectedVoicebot?.id === vb.id ? "bg-brand-500 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
-                  )}>
-                    {vb.exten}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">{vb.nome}</div>
-                    {vb.descrizione && <div className="text-xs text-slate-500 truncate">{vb.descrizione}</div>}
-                    {isAdmin && <div className="text-xs text-slate-400 font-mono">interno: {vb.exten} · ctx: {vb.context}</div>}
-                  </div>
-                  {selectedVoicebot?.id === vb.id && (
-                    <div className="w-2 h-2 rounded-full bg-brand-500 shrink-0" />
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">Chiamate Simultanee</label>
-          <div className="flex items-center gap-6">
-            <input 
-              type="range" 
-              min="1" max="3" 
-              value={concurrency}
-              onChange={e => setConcurrency(parseInt(e.target.value))}
-              className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-500"
-            />
-            <div className="w-12 h-12 bg-brand-500 text-white rounded-xl flex items-center justify-center font-display font-extrabold text-xl shadow-md shrink-0">
-              {concurrency}
-            </div>
-          </div>
-          <p className="text-xs font-medium text-slate-500 mt-3 align-middle flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-slate-400" />
-            {concurrency === 1 && "1 chiamata alla volta — inoltro sequenziale"}
-            {concurrency === 2 && "2 chiamate in parallelo"}
-            {concurrency === 3 && "3 chiamate in parallelo (Richiede piano Pro)"}
-          </p>
         </div>
       </div>
     </div>
