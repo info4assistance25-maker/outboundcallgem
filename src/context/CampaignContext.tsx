@@ -27,6 +27,8 @@ export interface Contact {
   numero: string;
   inv?: boolean;
   dup?: boolean;
+  data_appuntamento?: string;
+  ora_appuntamento?: string;
 }
 
 export interface ContactList {
@@ -89,6 +91,8 @@ interface CampaignContextType {
   
   campaignNote: string;
   setCampaignNote: (n: string) => void;
+  campaignType: 'standard' | 'appuntamenti';
+  setCampaignType: (t: 'standard' | 'appuntamenti') => void;
 
   voicebots: Voicebot[];
   selectedVoicebot: Voicebot | null;
@@ -131,6 +135,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [launchStatus, setLaunchStatus] = useState<{ type: 'idle' | 'load' | 'ok' | 'err', msg: string }>({ type: 'idle', msg: '' });
   const [testStatus, setTestStatus] = useState<{ type: 'idle' | 'load' | 'ok' | 'err', msg: string }>({ type: 'idle', msg: '' });
   const [campaignNote, setCampaignNote] = useState('');
+  const [campaignType, setCampaignType] = useState<'standard' | 'appuntamenti'>('standard');
   const [voicebots, setVoicebots] = useState<Voicebot[]>([]);
   const [selectedVoicebot, setSelectedVoicebot] = useState<Voicebot | null>(null);
   const [businessHoursEnabled, setBusinessHoursEnabled] = useState(false);
@@ -394,12 +399,22 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      const WEBHOOK_URL = campaignType === 'appuntamenti'
+        ? 'https://hook.eu1.make.com/9f7h1ebgktojphmiulyqte4ux7f3tjqv'
+        : 'https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo';
+
       const results = await Promise.all(chunks.map((chunk, idx) =>
-        fetch('https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo', {
+        fetch(WEBHOOK_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contatti: chunk,
+            contatti: chunk.map(c => ({
+                nome: c.nome,
+                numero: c.numero,
+                ...(campaignType === 'appuntamenti' && c.data_appuntamento ? { data_appuntamento: c.data_appuntamento } : {}),
+                ...(campaignType === 'appuntamenti' && c.ora_appuntamento ? { ora_appuntamento: c.ora_appuntamento } : {}),
+              })),
+              tipo_campagna: campaignType,
             totale: chunk.length,
             avviatoIl: new Date().toISOString(),
             scheduledAt: targetAt,
@@ -443,6 +458,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       isLaunching, launchStatus, launchCampaign,
       testSingleCall, testStatus,
       campaignNote, setCampaignNote,
+      campaignType, setCampaignType,
       voicebots, selectedVoicebot, setSelectedVoicebot, loadVoicebots,
       businessHoursEnabled, setBusinessHoursEnabled,
       businessHoursConfig, setBusinessHoursConfig,
