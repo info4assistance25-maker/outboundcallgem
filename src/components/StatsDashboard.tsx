@@ -19,8 +19,14 @@ export function StatsDashboard() {
     setLogsLoading(true);
     fetch('/api/access-logs')
       .then(r => r.json())
-      .then(d => setLogs(d.logs || []))
-      .catch(() => {})
+      .then(d => {
+        // Ordina i log dal più recente al più vecchio prima di salvarli nello stato
+        const sortedLogs = (d.logs || []).sort(
+          (a: AccessLog, b: AccessLog) => new Date(b.ts).getTime() - new Date(a.ts).getTime()
+        );
+        setLogs(sortedLogs);
+      })
+      .catch((err) => console.error("Errore caricamento log:", err))
       .finally(() => setLogsLoading(false));
   }, [isAdmin]);
 
@@ -146,9 +152,9 @@ export function StatsDashboard() {
             <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Log Accessi</h3>
           </div>
           {logsLoading ? (
-            <div className="p-8 text-center text-sm text-slate-400">Caricamento...</div>
+            <div className="p-8 text-center text-sm text-slate-400">Caricamento log...</div>
           ) : logs.length === 0 ? (
-            <div className="p-8 text-center text-sm text-slate-400">Nessun accesso registrato</div>
+            <div className="p-8 text-center text-sm text-slate-400 italic">Nessun accesso registrato</div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-80 overflow-y-auto">
               {logs.slice(0, 50).map((log, i) => (
@@ -166,7 +172,15 @@ export function StatsDashboard() {
                     <div className={cn("text-xs font-bold px-2 py-0.5 rounded-full", log.action === 'login' ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400')}>
                       {log.action === 'login' ? 'Accesso' : 'Uscita'}
                     </div>
-                    <div className="text-xs text-slate-400 mt-1">{format(new Date(log.ts), 'dd MMM HH:mm', { locale: it })}</div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      {(() => {
+                        try {
+                          return format(new Date(log.ts), 'dd MMM HH:mm', { locale: it });
+                        } catch {
+                          return 'Data non valida';
+                        }
+                      })()}
+                    </div>
                   </div>
                 </div>
               ))}
