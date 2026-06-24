@@ -3,8 +3,8 @@ import { useCampaign } from '../context/CampaignContext';
 import { GemLogo } from './Icons';
 import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { Step1Upload, Step2Preview } from './CampaignSteps';
-import { AppuntamentiSection } from './AppuntamentiSection';
+import { Step1Upload, Step2Preview, Step3Settings } from './CampaignSteps';
+import { AppointmentPage } from './AppointmentPage';
 import { LaunchSidebar } from './LaunchSidebar';
 import { ContactLists } from './ContactLists';
 import { AdminUsers } from './AdminUsers';
@@ -76,7 +76,7 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
 };
 
 export function Dashboard() {
-  const { user, darkMode, toggleTheme, logout, setCampaignType, setContacts } = useCampaign();
+  const { user, darkMode, toggleTheme, logout } = useCampaign();
   const isAdmin = user?.isAdmin || user?.role === 'Admin';
   const isViewer = user?.role === 'Viewer';
   const savedTab = sessionStorage.getItem('gem_active_tab') as Tab | null;
@@ -87,16 +87,9 @@ export function Dashboard() {
     setActiveTab(tab);
     sessionStorage.setItem('gem_active_tab', tab);
     setSidebarOpen(false);
-
-    if (tab === 'appointments') {
-      setCampaignType('appuntamenti');
-      setContacts([]);
-    } else if (tab === 'campaign') {
-      setCampaignType('standard');
-      setContacts([]);
-    }
   };
 
+  // Ascolta navigazione da altri componenti (es. link "Vai in Assistenza")
   React.useEffect(() => {
     const handler = (e: Event) => handleNav((e as CustomEvent).detail as Tab);
     window.addEventListener('gem:nav', handler);
@@ -110,6 +103,7 @@ export function Dashboard() {
 
       {/* SIDEBAR */}
       <>
+        {/* Mobile overlay */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
         )}
@@ -119,7 +113,7 @@ export function Dashboard() {
           "lg:sticky lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )} style={{width: 'clamp(220px, 16vw, 260px)', minHeight: '100dvh'}}>
-          
+          {/* Logo */}
           <div className="flex items-center justify-between px-5 h-16 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <GemLogo className="w-28 text-slate-900 dark:text-white" />
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-slate-700 dark:hover:text-white">
@@ -127,6 +121,7 @@ export function Dashboard() {
             </button>
           </div>
 
+          {/* Nav groups */}
           <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
             {NAV_GROUPS.map(group => {
               if (group.adminOnly && !isAdmin) return null;
@@ -167,11 +162,14 @@ export function Dashboard() {
             })}
           </nav>
 
+          {/* User + actions */}
           <div className="border-t border-slate-200 dark:border-slate-800 p-3 shrink-0">
+            {/* Wildix status */}
             <div className="flex items-center gap-2 px-3 py-2 mb-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
               <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Wildix · Attivo</span>
             </div>
+            {/* User row */}
             <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 mb-2">
               <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center text-xs font-bold text-brand-700 dark:text-brand-300 uppercase shrink-0">
                 {user?.nome?.charAt(0)}
@@ -181,6 +179,7 @@ export function Dashboard() {
                 <div className="text-xs text-slate-500 truncate">{user?.role || 'Editor'}</div>
               </div>
             </div>
+            {/* Theme + logout */}
             <div className="flex gap-2">
               <button
                 onClick={toggleTheme}
@@ -203,6 +202,7 @@ export function Dashboard() {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile topbar */}
         <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
           <button onClick={() => setSidebarOpen(true)} className="text-slate-500 hover:text-slate-900 dark:hover:text-white">
             <Menu className="w-5 h-5" />
@@ -213,6 +213,7 @@ export function Dashboard() {
           </div>
         </header>
 
+        {/* Page header */}
         <div className="px-6 lg:px-10 pt-8 pb-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 dark:text-white font-serif">
             {meta.title}
@@ -220,13 +221,15 @@ export function Dashboard() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">{meta.subtitle}</p>
         </div>
 
+        {/* Content */}
         <main className="flex-1 px-6 lg:px-10 py-8">
 
-          {activeTab === 'appointments' && !isViewer && (
+          {activeTab === 'campaign' && !isViewer && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-in fade-in slide-in-from-bottom-4 duration-300">
               <div className="space-y-6 lg:col-span-2">
-                <AppuntamentiSection />
+                <Step1Upload />
                 <Step2Preview />
+                <Step3Settings />
               </div>
               <div className="lg:col-span-1 lg:border-l border-slate-200 dark:border-slate-800/50 lg:pl-8">
                 <LaunchSidebar mode="launch" />
@@ -234,16 +237,8 @@ export function Dashboard() {
             </div>
           )}
 
-          {activeTab === 'campaign' && !isViewer && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <div className="space-y-6 lg:col-span-2">
-                <Step1Upload />
-                <Step2Preview />
-              </div>
-              <div className="lg:col-span-1 lg:border-l border-slate-200 dark:border-slate-800/50 lg:pl-8">
-                <LaunchSidebar mode="launch" />
-              </div>
-            </div>
+          {activeTab === 'appointments' && !isViewer && (
+            <AppointmentTab />
           )}
 
           {activeTab === 'lists' && !isViewer && (
