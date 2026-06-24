@@ -238,7 +238,7 @@ export function Dashboard() {
           )}
 
           {activeTab === 'appointments' && !isViewer && (
-            <AppointmentTab />
+            <AppointmentPage />
           )}
 
           {activeTab === 'lists' && !isViewer && (
