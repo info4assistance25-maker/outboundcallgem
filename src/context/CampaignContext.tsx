@@ -29,6 +29,7 @@ export interface Contact {
   dup?: boolean;
   data_appuntamento?: string;
   ora_appuntamento?: string;
+  prestazione?: string;
 }
 
 export interface ContactList {
@@ -413,6 +414,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
                 numero: c.numero,
                 ...(campaignType === 'appuntamenti' && c.data_appuntamento ? { data_appuntamento: c.data_appuntamento } : {}),
                 ...(campaignType === 'appuntamenti' && c.ora_appuntamento ? { ora_appuntamento: c.ora_appuntamento } : {}),
+                ...(campaignType === 'appuntamenti' && c.prestazione ? { prestazione: c.prestazione } : {}),
               })),
               tipo_campagna: campaignType,
             totale: chunk.length,
