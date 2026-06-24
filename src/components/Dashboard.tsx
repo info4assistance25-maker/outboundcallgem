@@ -4,7 +4,7 @@ import { GemLogo } from './Icons';
 import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Step1Upload, Step2Preview, Step3Settings } from './CampaignSteps';
-import { AppointmentPage } from './AppointmentPage';
+import { AppointmentPage } from './AppuntamentiSection';
 import { LaunchSidebar } from './LaunchSidebar';
 import { ContactLists } from './ContactLists';
 import { AdminUsers } from './AdminUsers';
