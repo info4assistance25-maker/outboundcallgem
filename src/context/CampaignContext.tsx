@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { isValidPhoneNumber, normalizePhoneNumber } from '../lib/utils';
+import { isValidPhoneNumber } from '../lib/utils';
 import * as XLSX from 'xlsx';
 
 export interface Voicebot {
@@ -238,14 +238,11 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     const seen = new Set();
     return raw.map(c => {
       const numStr = String(c.numero || '');
-      // Normalizza il numero (aggiunge +39, rimuove spazi/trattini)
-      const normalized = numStr.length > 0 ? normalizePhoneNumber(numStr) : numStr;
-      const k = normalized;
-      const inv = normalized.length > 0 && !isValidPhoneNumber(normalized);
+      const k = numStr.replace(/\s/g, '');
+      const inv = !isValidPhoneNumber(numStr);
       const dup = Boolean(k && seen.has(k));
       if (!dup && k) seen.add(k);
-      // Ritorna con numero normalizzato
-      return { ...c, numero: normalized || numStr, inv, dup };
+      return { ...c, inv, dup };
     });
   };
 
@@ -333,20 +330,45 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     return true;
   });
 
-  // Export history to XLSX
+  // Export history to XLSX — foglio riepilogo + un foglio per campagna
   const exportHistoryToXLSX = () => {
-    const rows = filteredHistory.map(h => ({
+    const wb = XLSX.utils.book_new();
+
+    // Foglio 1: Riepilogo campagne
+    const rows = filteredHistory.map((h, i) => ({
+      '#': i + 1,
       Data: new Date(h.ts).toLocaleString('it-IT'),
       Operatore: h.opt,
       Chiamate: h.count,
       Simultanee: h.chunkSize,
+      'Durata stimata (min)': Math.ceil((h.count / h.chunkSize) * 45 / 60),
       Modalità: h.scheduledAt ? 'Pianificata' : 'Immediata',
       'Ora Pianificata': h.scheduledAt ? new Date(h.scheduledAt).toLocaleString('it-IT') : '-',
       Note: h.note || '-',
+      Contatti: h.contactsList?.length || h.count,
     }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Storico');
+    const wsSummary = XLSX.utils.json_to_sheet(rows);
+    wsSummary['!cols'] = [
+      {wch:4},{wch:20},{wch:16},{wch:10},{wch:12},{wch:18},{wch:12},{wch:20},{wch:24},{wch:10}
+    ];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Riepilogo');
+
+    // Foglio 2+: Un foglio per ogni campagna con i contatti
+    filteredHistory.forEach((h, i) => {
+      if (!h.contactsList || h.contactsList.length === 0) return;
+      const label = `${String(i+1).padStart(2,'0')}_${new Date(h.ts).toLocaleDateString('it-IT').replace(/\//g,'-')}`;
+      const rows = h.contactsList.map(c => ({
+        Nome: c.nome,
+        Numero: c.numero,
+        ...(c.data_appuntamento ? { 'Data Appuntamento': c.data_appuntamento } : {}),
+        ...(c.ora_appuntamento ? { 'Ora Appuntamento': c.ora_appuntamento } : {}),
+        ...(c.prestazione ? { Prestazione: c.prestazione } : {}),
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{wch:20},{wch:18},{wch:18},{wch:16},{wch:22}];
+      XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 31));
+    });
+
     XLSX.writeFile(wb, `Storico_Campagne_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.xlsx`);
   };
 
@@ -376,12 +398,6 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       setTestStatus({ type: 'err', msg: 'Errore di rete: ' + e.message + SUPPORT_HINT });
     }
     setTimeout(() => setTestStatus({ type: 'idle', msg: '' }), 5000);
-  };
-
-  const retryCampaign = (retryContacts: Contact[]) => {
-    // Ricarica i contatti e naviga alla tab campagna
-    updateManualContacts(retryContacts);
-    window.dispatchEvent(new CustomEvent('gem:nav', { detail: 'campaign' }));
   };
 
   const launchCampaign = async () => {
