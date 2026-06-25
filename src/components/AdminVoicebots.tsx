@@ -60,61 +60,57 @@ export function AdminVoicebots() {
   };
 
   const handleSaveEdit = async (id: string) => {
-    const res = await fetch(`/api/voicebots/${id}`, {
+    const updated = { ...bots.find(b => b.id === id)!, ...form, exten: parseInt(form.exten), id };
+    // Ottimistic update
+    setBots(prev => prev.map(b => b.id === id ? updated : b));
+    setEditId(null);
+    notify('ok', 'Salvato');
+    loadVoicebots();
+    // Salva in background
+    fetch(`/api/voicebots/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, exten: parseInt(form.exten) })
-    });
-    const data = await res.json();
-    if (data.ok) { notify('ok', 'Salvato'); setEditId(null); load(); loadVoicebots(); }
-    else notify('err', data.error || 'Errore');
+      body: JSON.stringify(updated)
+    }).then(r => r.json()).then(data => {
+      if (!data.ok) { notify('err', data.error || 'Errore salvataggio'); load(); }
+    }).catch(() => { notify('err', 'Errore di rete'); load(); });
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Eliminare questo voicebot?')) return;
-    await fetch(`/api/voicebots/${id}`, { method: 'DELETE' });
-    notify('ok', 'Eliminato'); load(); loadVoicebots();
+    // Ottimistic update
+    setBots(prev => prev.filter(b => b.id !== id));
+    notify('ok', 'Eliminato');
+    loadVoicebots();
+    fetch(`/api/voicebots/${id}`, { method: 'DELETE' }).catch(() => {
+      notify('err', 'Errore eliminazione'); load();
+    });
   };
 
   const handleToggle = async (bot: Voicebot) => {
     const nuovoStato = !bot.attivo;
-
+    // Ottimistic update — aggiorna UI immediatamente
+    setBots(prev => prev.map(b => b.id === bot.id ? { ...b, attivo: nuovoStato } : b));
+    loadVoicebots();
+    // Salva in background senza bloccare
     try {
-      // 1. Aggiorna solo ed esclusivamente il bot cliccato
       const res = await fetch(`/api/voicebots/${bot.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...bot, attivo: nuovoStato })
       });
-      
       const data = await res.json();
-      
-      if (!data.ok) {
-        notify('err', data.error || 'Impossibile aggiornare lo stato del voicebot');
-        return;
+      if (data.ok) {
+        notify('ok', nuovoStato ? `${bot.nome} attivato` : `${bot.nome} disattivato`);
+      } else {
+        setBots(prev => prev.map(b => b.id === bot.id ? { ...b, attivo: bot.attivo } : b));
+        notify('err', data.error || 'Errore aggiornamento');
       }
-
-      // 2. Se abbiamo attivato questo bot, spegniamo gli altri uno alla volta in modo sequenziale
-      if (nuovoStato) {
-        const altriBotAttivi = bots.filter(b => b.id !== bot.id && b.attivo);
-        for (const b of altriBotAttivi) {
-          await fetch(`/api/voicebots/${b.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...b, attivo: false })
-          });
-        }
-      }
-
-      notify('ok', nuovoStato ? 'Voicebot attivato' : 'Voicebot disattivato');
-      load(); 
-      loadVoicebots();
-    } catch (error) {
-      console.error(error);
-      notify('err', 'Errore di rete durante l\'operazione');
+    } catch {
+      setBots(prev => prev.map(b => b.id === bot.id ? { ...b, attivo: bot.attivo } : b));
+      notify('err', 'Errore di rete');
     }
   };
-
   const startEdit = (bot: Voicebot) => {
     setEditId(bot.id);
     setForm({ nome: bot.nome, exten: String(bot.exten), context: bot.context, descrizione: bot.descrizione || '', attivo: bot.attivo });
