@@ -156,6 +156,7 @@ export function AdminUsers() {
   if (!user?.isAdmin) return null;
 
   return (
+    <>
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft overflow-hidden mb-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/30">
         <div className="flex items-center gap-3">
@@ -254,7 +255,6 @@ export function AdminUsers() {
                   const hasSchedule = u.canSchedule === true;
 
                   return (
-                    <>
                     <div key={u.username} className="grid grid-cols-[2fr_2fr_2fr_2fr_1fr_auto] gap-3 p-3 items-center border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
                       <span className="font-medium text-slate-900 dark:text-slate-200 truncate" title={u.nome}>{u.nome}</span>
                       <span className="text-slate-500 truncate" title={u.username}>{u.username}</span>
