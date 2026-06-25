@@ -86,6 +86,8 @@ interface CampaignContextType {
 
   isLaunching: boolean;
   launchStatus: { type: 'idle' | 'load' | 'ok' | 'err'; msg: string };
+  launchProgress: { sent: number; total: number } | null;
+  stopCampaign: () => void;
   launchCampaign: () => Promise<void>;
   testSingleCall: (contact: Contact) => Promise<void>;
   testStatus: { type: 'idle' | 'load' | 'ok' | 'err'; msg: string };
@@ -104,8 +106,8 @@ interface CampaignContextType {
   businessHoursConfig: { days: number[]; startHour: number; endHour: number };
   setBusinessHoursConfig: (c: { days: number[]; startHour: number; endHour: number }) => void;
 
-  historyFilter: { operator: string; dateFrom: string; dateTo: string; search: string };
-  setHistoryFilter: (f: { operator: string; dateFrom: string; dateTo: string; search: string }) => void;
+  historyFilter: { operator: string; dateFrom: string; dateTo: string };
+  setHistoryFilter: (f: { operator: string; dateFrom: string; dateTo: string }) => void;
   filteredHistory: HistoryItem[];
   exportHistoryToXLSX: () => void;
   
@@ -134,6 +136,9 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [concurrency, setConcurrency] = useState<number>(1);
   const [isLaunching, setIsLaunching] = useState(false);
   const [launchStatus, setLaunchStatus] = useState<{ type: 'idle' | 'load' | 'ok' | 'err', msg: string }>({ type: 'idle', msg: '' });
+  const [launchProgress, setLaunchProgress] = useState<{ sent: number; total: number } | null>(null);
+  const stopCampaignRef = React.useRef(false);
+  const stopCampaign = () => { stopCampaignRef.current = true; };
   const [testStatus, setTestStatus] = useState<{ type: 'idle' | 'load' | 'ok' | 'err', msg: string }>({ type: 'idle', msg: '' });
   const [campaignNote, setCampaignNote] = useState('');
   const [campaignType, setCampaignType] = useState<'standard' | 'appuntamenti'>('standard');
@@ -141,7 +146,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [selectedVoicebot, setSelectedVoicebot] = useState<Voicebot | null>(null);
   const [businessHoursEnabled, setBusinessHoursEnabled] = useState(false);
   const [businessHoursConfig, setBusinessHoursConfig] = useState({ days: [1,2,3,4,5], startHour: 9, endHour: 19 });
-  const [historyFilter, setHistoryFilter] = useState({ operator: '', dateFrom: '', dateTo: '', search: '' });
+  const [historyFilter, setHistoryFilter] = useState({ operator: '', dateFrom: '', dateTo: '' });
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [lists, setLists] = useState<ContactList[]>([]);
   const [darkMode, setDarkMode] = useState(false);
@@ -327,13 +332,6 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     if (historyFilter.operator && !h.opt.toLowerCase().includes(historyFilter.operator.toLowerCase())) return false;
     if (historyFilter.dateFrom && new Date(h.ts) < new Date(historyFilter.dateFrom)) return false;
     if (historyFilter.dateTo && new Date(h.ts) > new Date(historyFilter.dateTo + 'T23:59:59')) return false;
-    if (historyFilter.search) {
-      const s = historyFilter.search.toLowerCase();
-      const matchNote = h.note?.toLowerCase().includes(s);
-      const matchOp = h.opt?.toLowerCase().includes(s);
-      const matchContacts = h.contactsList?.some(c => c.nome?.toLowerCase().includes(s) || c.numero?.includes(s));
-      if (!matchNote && !matchOp && !matchContacts) return false;
-    }
     return true;
   });
 
@@ -411,12 +409,25 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
         ? 'https://hook.eu1.make.com/9f7h1ebgktojphmiulyqte4ux7f3tjqv'
         : 'https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo';
 
-      const results = await Promise.all(chunks.map((chunk, idx) =>
-        fetch(WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contatti: chunk.map(c => ({
+        stopCampaignRef.current = false;
+      setLaunchProgress({ sent: 0, total: validContacts.length });
+      let okCount = 0;
+      let sentCount = 0;
+
+      for (let idx = 0; idx < chunks.length; idx++) {
+        if (stopCampaignRef.current) {
+          setLaunchStatus({ type: 'err', msg: `Campagna interrotta — ${sentCount} contatti inviati su ${validContacts.length}.` });
+          setLaunchProgress(null);
+          setIsLaunching(false);
+          return;
+        }
+        const chunk = chunks[idx];
+        try {
+          const r = await fetch(WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contatti: chunk.map(c => ({
                 nome: c.nome,
                 numero: c.numero,
                 ...(campaignType === 'appuntamenti' && c.data_appuntamento ? { data_appuntamento: c.data_appuntamento } : {}),
@@ -424,23 +435,28 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
                 ...(campaignType === 'appuntamenti' && c.prestazione ? { prestazione: c.prestazione } : {}),
               })),
               tipo_campagna: campaignType,
-            totale: chunk.length,
-            avviatoIl: new Date().toISOString(),
-            scheduledAt: targetAt,
-            modalita: targetAt ? 'scheduled' : 'immediate',
-            operatore: user?.nome,
-            fonte: 'gem-dashboard-react',
-            note: campaignNote || undefined,
-            voicebot_nome: selectedVoicebot?.nome,
-            voicebot_exten: selectedVoicebot?.exten || 8000,
-            voicebot_context: selectedVoicebot?.context || 'outbound-voicebot',
-            chunk: idx + 1,
-            chunks_totali: chunks.length
-          })
-        })
-      ));
+              totale: chunk.length,
+              avviatoIl: new Date().toISOString(),
+              scheduledAt: targetAt,
+              modalita: targetAt ? 'scheduled' : 'immediate',
+              operatore: user?.nome,
+              fonte: 'gem-dashboard-react',
+              note: campaignNote || undefined,
+              voicebot_nome: selectedVoicebot?.nome,
+              voicebot_exten: selectedVoicebot?.exten || 8000,
+              voicebot_context: selectedVoicebot?.context || 'outbound-voicebot',
+              chunk: idx + 1,
+              chunks_totali: chunks.length
+            })
+          });
+          if (r.ok || r.status === 200) okCount++;
+        } catch {}
+        sentCount += chunk.length;
+        setLaunchProgress({ sent: sentCount, total: validContacts.length });
+        setLaunchStatus({ type: 'load', msg: `Invio in corso — ${sentCount}/${validContacts.length} contatti inviati...` });
+      }
 
-      const okCount = results.filter(r => r.ok || r.status === 200).length;
+      setLaunchProgress(null);
       if (okCount === chunks.length) {
         setLaunchStatus({ type: 'ok', msg: `Campagna inviata — ${validContacts.length} chiamate in elaborazione.` });
         saveHistory(validContacts.length, targetAt, concurrency, validContacts.map(c => ({...c})));
@@ -465,6 +481,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       scheduleMode, setScheduleMode, scheduledAt, setScheduledAt,
       concurrency, setConcurrency,
       isLaunching, launchStatus, launchCampaign,
+      launchProgress, stopCampaign,
       testSingleCall, testStatus,
       campaignNote, setCampaignNote,
       campaignType, setCampaignType,
