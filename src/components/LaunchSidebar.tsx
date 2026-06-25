@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
-import { Play, AlertTriangle, Loader2, Trash2, DownloadCloud, Save, Phone, Clock, Filter, X, StickyNote, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Play, AlertTriangle, Loader2, Trash2, DownloadCloud, Save, Phone, Clock, Filter, X, StickyNote, CheckCircle2, ChevronDown, ChevronUp , Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -63,6 +63,18 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
   };
 
   const operators = [...new Set(history.map(h => h.opt))];
+
+  // Shortcut Ctrl+Enter per avviare campagna
+  React.useEffect(() => {
+    if (mode !== 'launch' && mode !== 'all') return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (!isLaunching && validContacts.length > 0) launchCampaign();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isLaunching, validContacts, mode]);
 
   return (
     <div className="space-y-6 sticky top-24">
@@ -312,8 +324,17 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
                   className="w-full px-2 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none dark:text-white" />
               </div>
             </div>
-            {(historyFilter.operator || historyFilter.dateFrom || historyFilter.dateTo) && (
-              <button onClick={() => setHistoryFilter({ operator: '', dateFrom: '', dateTo: '' })}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cerca</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input type="text" placeholder="Nome, numero, operatore..." value={historyFilter.search || ''}
+                  onChange={e => setHistoryFilter({...historyFilter, search: e.target.value})}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-brand-500 dark:text-white" />
+              </div>
+            </div>
+            {(historyFilter.operator || historyFilter.dateFrom || historyFilter.dateTo || historyFilter.search) && (
+              <button onClick={() => setHistoryFilter({ operator: '', dateFrom: '', dateTo: '', search: '' })}
                 className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 transition-colors">
                 <X className="w-3 h-3" /> Rimuovi filtri
               </button>
