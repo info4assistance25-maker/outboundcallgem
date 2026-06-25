@@ -6,6 +6,23 @@ import { UploadCloud, DownloadCloud, Plus, Trash2, AlertTriangle } from 'lucide-
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
 
+// Converte da yyyy-mm-dd (input date) a dd/mm/yyyy (formato Make/Sheets)
+const dateInputToDisplay = (val: string): string => {
+  if (!val) return '';
+  const [y, m, d] = val.split('-');
+  if (!y || !m || !d) return val;
+  return `${d}/${m}/${y}`;
+};
+
+// Converte da dd/mm/yyyy a yyyy-mm-dd per il valore dell'input date
+const displayToDateInput = (val: string): string => {
+  if (!val) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+  const [d, m, y] = val.split('/');
+  if (!d || !m || !y) return '';
+  return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+};
+
 const PRESTAZIONE_SUGGERIMENTI = [
   'Visita di controllo',
   'Prima visita',
@@ -181,10 +198,10 @@ export function AppointmentPage() {
                         onChange={e => updateRow(c.id, 'numero', e.target.value)}
                         className={cn("w-full bg-white dark:bg-slate-900 px-2 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 focus:border-brand-500 focus:outline-none text-slate-900 dark:text-slate-100",
                           c.inv && c.numero.length > 3 && "!border-red-400 !bg-red-50 dark:!bg-red-900/20")} />
-                      <input type="text" placeholder="gg/mm/aaaa" value={c.data_appuntamento || ''} disabled={isViewer}
-                        onChange={e => updateRow(c.id, 'data_appuntamento', e.target.value)}
+                      <input type="date" value={displayToDateInput(c.data_appuntamento || '')} disabled={isViewer}
+                        onChange={e => updateRow(c.id, 'data_appuntamento', dateInputToDisplay(e.target.value))}
                         className="w-full bg-white dark:bg-slate-900 px-2 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 focus:border-brand-500 focus:outline-none text-slate-900 dark:text-slate-100" />
-                      <input type="text" placeholder="HH:MM" value={c.ora_appuntamento || ''} disabled={isViewer}
+                      <input type="time" value={c.ora_appuntamento || ''} disabled={isViewer}
                         onChange={e => updateRow(c.id, 'ora_appuntamento', e.target.value)}
                         className="w-full bg-white dark:bg-slate-900 px-2 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 focus:border-brand-500 focus:outline-none text-slate-900 dark:text-slate-100" />
                       <div>
