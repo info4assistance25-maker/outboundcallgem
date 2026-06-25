@@ -33,10 +33,33 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
 
   const exportSingleHistory = (h: any) => {
     if (!h.contactsList) return;
-    const data = h.contactsList.map((c: any) => ({ Nome: c.nome, Numero: c.numero }));
-    const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Contatti');
+
+    // Foglio contatti con tutti i campi disponibili
+    const data = h.contactsList.map((c: any) => ({
+      Nome: c.nome,
+      Numero: c.numero,
+      ...(c.data_appuntamento ? { 'Data Appuntamento': c.data_appuntamento } : {}),
+      ...(c.ora_appuntamento ? { 'Ora': c.ora_appuntamento } : {}),
+      ...(c.prestazione ? { Prestazione: c.prestazione } : {}),
+    }));
+    const wsContatti = XLSX.utils.json_to_sheet(data);
+    wsContatti['!cols'] = [{wch:22},{wch:18},{wch:18},{wch:10},{wch:24}];
+    XLSX.utils.book_append_sheet(wb, wsContatti, 'Contatti');
+
+    // Foglio info campagna
+    const info = [
+      { Campo: 'Data avvio', Valore: new Date(h.ts).toLocaleString('it-IT') },
+      { Campo: 'Operatore', Valore: h.opt },
+      { Campo: 'Chiamate', Valore: h.count },
+      { Campo: 'Chiamate simultanee', Valore: h.chunkSize },
+      { Campo: 'Modalità', Valore: h.scheduledAt ? 'Pianificata' : 'Immediata' },
+      { Campo: 'Note', Valore: h.note || '-' },
+    ];
+    const wsInfo = XLSX.utils.json_to_sheet(info);
+    wsInfo['!cols'] = [{wch:22},{wch:30}];
+    XLSX.utils.book_append_sheet(wb, wsInfo, 'Info Campagna');
+
     XLSX.writeFile(wb, `Campagna_${format(new Date(h.ts), 'yyyyMMdd_HHmm')}.xlsx`);
   };
 
