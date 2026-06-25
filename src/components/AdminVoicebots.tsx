@@ -3,6 +3,7 @@ import { useCampaign, Voicebot } from '../context/CampaignContext';
 import { Plus, Pencil, Trash2, Save, X, Phone, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ConfirmModal } from './ConfirmModal';
+import { SkeletonRow, EmptyState } from './Skeleton';
 
 function FormRow({ label, field, placeholder, type = 'text', form, setForm }: any) {
   return (
@@ -23,7 +24,7 @@ function FormRow({ label, field, placeholder, type = 'text', form, setForm }: an
         onConfirm={() => confirmDelete && handleDelete(confirmDelete.id)}
         onCancel={() => setConfirmDelete(null)}
       />
-    </div>
+    </>
   );
 }
 
@@ -127,6 +128,7 @@ export function AdminVoicebots() {
   };
 
   return (
+    <>
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
       {status && (
         <div className={cn("flex items-center gap-2 p-3 rounded-xl text-sm font-medium animate-in zoom-in-95",
@@ -172,9 +174,15 @@ export function AdminVoicebots() {
 
         {/* Lista voicebot */}
         {loading ? (
-          <div className="p-8 text-center text-sm text-slate-400">Caricamento...</div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {[...Array(3)].map((_, i) => <SkeletonRow key={i} />)}
+          </div>
         ) : bots.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">Nessun voicebot. Clicca "Aggiungi" per crearne uno.</div>
+          <EmptyState
+            icon={<Phone className="w-7 h-7" />}
+            title="Nessun voicebot configurato"
+            description='Clicca "+ Aggiungi" per creare il primo voicebot da usare nelle campagne.'
+          />
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {bots.map(bot => (
@@ -240,6 +248,6 @@ export function AdminVoicebots() {
         onConfirm={() => confirmDelete && handleDelete(confirmDelete.id)}
         onCancel={() => setConfirmDelete(null)}
       />
-    </div>
+    </>
   );
 }
