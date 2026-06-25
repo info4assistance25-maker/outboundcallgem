@@ -11,6 +11,16 @@ export default defineConfig(() => {
       outDir: 'dist',
       emptyOutDir: true,
       chunkSizeWarningLimit: 1500,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-charts': ['recharts'],
+            'vendor-xlsx': ['xlsx'],
+            'vendor-icons': ['lucide-react'],
+          },
+        },
+      },
     },
     resolve: {
       alias: { '@': path.resolve(__dirname, '.') },
