@@ -298,14 +298,17 @@ app.put("/api/voicebots/:id", async (req, res) => {
   const idx = bots.findIndex((b: any) => b.id === req.params.id);
   if (idx === -1) return res.status(404).json({ ok: false, error: "Voicebot non trovato" });
   bots[idx] = { ...bots[idx], ...req.body, id: req.params.id };
-  await writeVoicebots(bots);
+  // Salva localmente subito e rispondi, GitHub in background
+  try { fs.writeFileSync(VOICEBOTS_LOCAL, JSON.stringify(bots, null, 2)); } catch {}
   res.json({ ok: true });
+  writeVoicebots(bots).catch(() => {});
 });
 
 app.delete("/api/voicebots/:id", async (req, res) => {
   const bots = readVoicebots().filter((b: any) => b.id !== req.params.id);
-  await writeVoicebots(bots);
+  try { fs.writeFileSync(VOICEBOTS_LOCAL, JSON.stringify(bots, null, 2)); } catch {}
   res.json({ ok: true });
+  writeVoicebots(bots).catch(() => {});
 });
 
 // ── ACCESS LOGS ──
