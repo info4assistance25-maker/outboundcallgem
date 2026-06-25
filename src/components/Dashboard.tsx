@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
 import { GemLogo } from './Icons';
-import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck } from 'lucide-react';
+import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Step1Upload, Step2Preview, Step3Settings } from './CampaignSteps';
 import { AppointmentPage } from './AppuntamentiSection';
@@ -74,6 +74,45 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   users: { title: 'Gestione Utenti', subtitle: 'Gestisci accessi, ruoli e permessi per gli utenti della piattaforma.' },
   voicebots: { title: 'Gestione Voicebot', subtitle: 'Configura i voicebot disponibili sul centralino Wildix per le campagne.' },
 };
+
+function CampaignStepper() {
+  const { contacts, validContacts, selectedVoicebot } = useCampaign();
+  const steps = [
+    { n: 1, label: 'Carica', done: contacts.length > 0 },
+    { n: 2, label: 'Verifica', done: validContacts.length > 0 },
+    { n: 3, label: 'Imposta', done: !!selectedVoicebot },
+    { n: 4, label: 'Avvia', done: false },
+  ];
+  const current = steps.find(s => !s.done)?.n ?? 4;
+  return (
+    <div className="mb-8 flex items-center">
+      {steps.map((s, i) => {
+        const state = s.done ? 'done' : s.n === current ? 'current' : 'todo';
+        return (
+          <React.Fragment key={s.n}>
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors",
+                state === 'done' && "bg-brand-600 text-white",
+                state === 'current' && "bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 ring-2 ring-brand-500",
+                state === 'todo' && "bg-slate-100 dark:bg-slate-800 text-slate-400"
+              )}>
+                {s.done ? <Check className="w-4 h-4" /> : s.n}
+              </div>
+              <span className={cn(
+                "text-sm font-semibold hidden sm:block transition-colors",
+                state === 'todo' ? "text-slate-400" : "text-slate-700 dark:text-slate-200"
+              )}>{s.label}</span>
+            </div>
+            {i < steps.length - 1 && (
+              <div className={cn("flex-1 h-0.5 mx-3 rounded-full transition-colors", s.done ? "bg-brand-500" : "bg-slate-200 dark:bg-slate-700")} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
 
 export function Dashboard() {
   const { user, darkMode, toggleTheme, logout } = useCampaign();
@@ -230,7 +269,7 @@ export function Dashboard() {
 
         {/* Page header */}
         <div className="px-6 lg:px-10 pt-8 pb-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 dark:text-white font-serif">
+          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
             {meta.title}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">{meta.subtitle}</p>
@@ -240,14 +279,17 @@ export function Dashboard() {
         <main className="flex-1 px-6 lg:px-10 py-8">
 
           {activeTab === 'campaign' && !isViewer && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <div className="space-y-6 lg:col-span-2">
-                <Step1Upload />
-                <Step2Preview />
-                <Step3Settings />
-              </div>
-              <div className="lg:col-span-1 lg:border-l border-slate-200 dark:border-slate-800/50 lg:pl-8">
-                <LaunchSidebar mode="launch" />
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <CampaignStepper />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                <div className="space-y-6 lg:col-span-2">
+                  <Step1Upload />
+                  <Step2Preview />
+                  <Step3Settings />
+                </div>
+                <div className="lg:col-span-1 lg:border-l border-slate-200 dark:border-slate-800/50 lg:pl-8">
+                  <LaunchSidebar mode="launch" />
+                </div>
               </div>
             </div>
           )}
