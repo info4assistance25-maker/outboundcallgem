@@ -191,6 +191,9 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
                   </button>
                   <button
                     onClick={() => setBusinessHoursEnabled(!businessHoursEnabled)}
+                    role="switch"
+                    aria-checked={businessHoursEnabled}
+                    aria-label="Blocca chiamate fuori orario"
                     className={cn("relative w-10 h-5 rounded-full transition-colors", businessHoursEnabled ? "bg-brand-600" : "bg-slate-300 dark:bg-slate-600")}
                   >
                     <span className={cn("absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform", businessHoursEnabled ? "translate-x-5" : "translate-x-0.5")} />
@@ -307,6 +310,12 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
             {getButtonText()}
           </button>
 
+          {validContacts.length === 0 && !isLaunching && (
+            <p className="mt-3 text-xs text-center font-medium text-slate-400">
+              Carica almeno un contatto valido per avviare la campagna.
+            </p>
+          )}
+
           {launchStatus.type !== 'idle' && (
             <div className={cn(
               "mt-4 p-4 rounded-xl border flex items-start gap-3 text-sm font-medium animate-in fade-in zoom-in-95",
@@ -336,11 +345,11 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-900 dark:text-white font-display">Storico Campagne</h2>
           <div className="flex items-center gap-2">
-            <button onClick={exportHistoryToXLSX} title="Esporta tutto in Excel"
+            <button onClick={exportHistoryToXLSX} title="Esporta tutto in Excel" aria-label="Esporta tutto in Excel"
               className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
               <DownloadCloud className="w-4 h-4" />
             </button>
-            <button onClick={() => setShowFilters(!showFilters)}
+            <button onClick={() => setShowFilters(!showFilters)} aria-label="Mostra filtri" aria-pressed={showFilters}
               className={cn("p-1.5 rounded-lg transition-colors", showFilters ? "text-brand-600 bg-brand-50" : "text-slate-400 hover:text-brand-600 hover:bg-brand-50")}>
               <Filter className="w-4 h-4" />
             </button>
@@ -381,8 +390,19 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
 
         <div>
           {filteredHistory.length === 0 ? (
-            <div className="p-8 text-center text-sm font-medium text-slate-400">
-              {history.length === 0 ? 'Nessuna campagna ancora avviata' : 'Nessun risultato con i filtri attivi'}
+            <div className="p-10 text-center">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                <Clock className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                {history.length === 0 ? 'Nessuna campagna ancora avviata' : 'Nessun risultato con i filtri attivi'}
+              </p>
+              {history.length === 0 && !isViewer && (
+                <button onClick={() => window.dispatchEvent(new CustomEvent('gem:nav', { detail: 'campaign' }))}
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold rounded-lg transition-colors">
+                  <Play className="w-3.5 h-3.5 fill-current" /> Crea la prima campagna
+                </button>
+              )}
             </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
