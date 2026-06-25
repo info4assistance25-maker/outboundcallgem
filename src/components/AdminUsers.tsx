@@ -3,6 +3,7 @@ import { useCampaign } from '../context/CampaignContext';
 import { Users, Trash2, Plus, Loader2, Edit2, X, Save } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ConfirmModal } from './ConfirmModal';
+import { SkeletonUserRow, EmptyState } from './Skeleton';
 
 interface EditingState {
   username: string;
@@ -27,6 +28,7 @@ export function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const [editingUser, setEditingUser] = useState<EditingState | null>(null);
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     try {
@@ -182,7 +184,9 @@ export function AdminUsers() {
       <div className="p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
           {loading ? (
-            <div className="p-8 text-center text-slate-400">Caricamento utenti...</div>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {[...Array(4)].map((_, i) => <SkeletonUserRow key={i} />)}
+            </div>
           ) : (
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
               <div className="grid grid-cols-[2fr_2fr_2fr_2fr_1fr_auto] bg-slate-50 dark:bg-slate-800/80 p-3 border-b border-slate-200 dark:border-slate-700 gap-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -384,13 +388,13 @@ export function AdminUsers() {
       </div>
     </div>
     <ConfirmModal
-        open={!!confirmDeleteUser}
-        title="Elimina utente"
-        message={`Vuoi eliminare l'utente "${confirmDeleteUser}"? Questa azione non può essere annullata.`}
-        confirmLabel="Elimina"
-        onConfirm={() => confirmDeleteUser && handleDelete(confirmDeleteUser)}
-        onCancel={() => setConfirmDeleteUser(null)}
-      />
+      open={!!confirmDeleteUser}
+      title="Elimina utente"
+      message={`Vuoi eliminare l'utente "${confirmDeleteUser}"? Questa azione non può essere annullata.`}
+      confirmLabel="Elimina"
+      onConfirm={() => confirmDeleteUser && handleDelete(confirmDeleteUser)}
+      onCancel={() => setConfirmDeleteUser(null)}
+    />
     </>
   );
 }
