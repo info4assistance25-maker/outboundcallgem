@@ -254,6 +254,7 @@ export function AdminUsers() {
                   const hasSchedule = u.canSchedule === true;
 
                   return (
+                    <>
                     <div key={u.username} className="grid grid-cols-[2fr_2fr_2fr_2fr_1fr_auto] gap-3 p-3 items-center border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
                       <span className="font-medium text-slate-900 dark:text-slate-200 truncate" title={u.nome}>{u.nome}</span>
                       <span className="text-slate-500 truncate" title={u.username}>{u.username}</span>
@@ -390,5 +391,6 @@ export function AdminUsers() {
         onConfirm={() => confirmDeleteUser && handleDelete(confirmDeleteUser)}
         onCancel={() => setConfirmDeleteUser(null)}
       />
+    </>
   );
 }
