@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useCampaign, Voicebot } from '../context/CampaignContext';
 import { Plus, Pencil, Trash2, Save, X, Phone, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { ConfirmModal } from './ConfirmModal';
 
 function FormRow({ label, field, placeholder, type = 'text', form, setForm }: any) {
   return (
@@ -13,6 +14,14 @@ function FormRow({ label, field, placeholder, type = 'text', form, setForm }: an
         onChange={e => setForm((prev: any) => ({ ...prev, [field]: e.target.value }))}
         placeholder={placeholder}
         className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-brand-500 dark:text-white"
+      />
+    <ConfirmModal
+        open={!!confirmDelete}
+        title="Elimina voicebot"
+        message={`Vuoi eliminare "${confirmDelete?.nome}"? Questa azione non può essere annullata.`}
+        confirmLabel="Elimina"
+        onConfirm={() => confirmDelete && handleDelete(confirmDelete.id)}
+        onCancel={() => setConfirmDelete(null)}
       />
     </div>
   );
@@ -29,6 +38,7 @@ export function AdminVoicebots() {
 
   const emptyForm = { nome: '', exten: '', context: 'outbound-voicebot', descrizione: '', attivo: true };
   const [form, setForm] = useState<any>(emptyForm);
+  const [confirmDelete, setConfirmDelete] = useState<Voicebot | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -77,7 +87,6 @@ export function AdminVoicebots() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Eliminare questo voicebot?')) return;
     // Ottimistic update
     setBots(prev => prev.filter(b => b.id !== id));
     notify('ok', 'Eliminato');
@@ -212,7 +221,7 @@ export function AdminVoicebots() {
                       <button onClick={() => startEdit(bot)} className="p-2 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
                         <Pencil className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleDelete(bot.id)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      <button onClick={() => setConfirmDelete(bot)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -223,6 +232,14 @@ export function AdminVoicebots() {
           </div>
         )}
       </div>
+    <ConfirmModal
+        open={!!confirmDelete}
+        title="Elimina voicebot"
+        message={`Vuoi eliminare "${confirmDelete?.nome}"? Questa azione non può essere annullata.`}
+        confirmLabel="Elimina"
+        onConfirm={() => confirmDelete && handleDelete(confirmDelete.id)}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }
