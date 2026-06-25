@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
-import { Play, AlertTriangle, Loader2, Trash2, DownloadCloud, Save, Phone, Clock, Filter, X, StickyNote, CheckCircle2, ChevronDown, ChevronUp, StopCircle } from 'lucide-react';
+import { Play, AlertTriangle, Loader2, Trash2, DownloadCloud, Save, Phone, Clock, Filter, X, StickyNote, CheckCircle2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -11,7 +11,7 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
     user, validContacts, contacts,
     scheduleMode, scheduledAt, concurrency,
     isLaunching, launchStatus, launchCampaign,
-    launchProgress, stopCampaign,
+    retryCampaign,
     testSingleCall, testStatus,
     campaignNote, setCampaignNote,
     businessHoursEnabled, setBusinessHoursEnabled,
@@ -238,42 +238,17 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
             </div>
           )}
 
-          {/* Progress bar */}
-          {launchProgress && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400">
-                <span>{launchProgress.sent} / {launchProgress.total} contatti</span>
-                <span>{Math.round((launchProgress.sent / launchProgress.total) * 100)}%</span>
-              </div>
-              <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-brand-500 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.round((launchProgress.sent / launchProgress.total) * 100)}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Launch button + Stop */}
-          <div className="flex gap-2">
-            <button onClick={launchCampaign} disabled={isLaunching || validContacts.length === 0}
-              className={cn(
-                "flex-1 py-4 px-6 rounded-xl font-display font-extrabold text-base flex items-center justify-center gap-3 transition-all duration-200",
-                validContacts.length === 0 ? "bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
-                  : "bg-brand-600 hover:bg-brand-700 text-white shadow-soft-blue hover:shadow-lg hover:-translate-y-0.5",
-                isLaunching && "opacity-80 pointer-events-none"
-              )}>
-              {isLaunching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
-              {getButtonText()}
-            </button>
-            {isLaunching && (
-              <button onClick={stopCampaign}
-                className="px-4 py-4 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-xl font-bold transition-colors"
-                title="Interrompi campagna">
-                <StopCircle className="w-5 h-5" />
-              </button>
-            )}
-          </div>
+          {/* Launch button */}
+          <button onClick={launchCampaign} disabled={isLaunching || validContacts.length === 0}
+            className={cn(
+              "w-full py-4 px-6 rounded-xl font-display font-extrabold text-base flex items-center justify-center gap-3 transition-all duration-200",
+              validContacts.length === 0 ? "bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
+                : "bg-brand-600 hover:bg-brand-700 text-white shadow-soft-blue hover:shadow-lg hover:-translate-y-0.5",
+              isLaunching && "opacity-80 pointer-events-none"
+            )}>
+            {isLaunching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
+            {getButtonText()}
+          </button>
 
           {launchStatus.type !== 'idle' && (
             <div className={cn(
@@ -379,10 +354,17 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
                       {h.opt}{h.chunkSize > 1 ? ` · ${h.chunkSize} simul.` : ''}
                     </div>
                     {h.contactsList && h.contactsList.length > 0 && (
-                      <button onClick={() => exportSingleHistory(h)}
-                        className="text-[10px] uppercase tracking-wider font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2 py-1 rounded transition-colors flex items-center gap-1 flex-shrink-0">
-                        <DownloadCloud className="w-3 h-3" /> Esporta
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => retryCampaign(h.contactsList!)}
+                          className="text-[10px] uppercase tracking-wider font-bold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded transition-colors flex items-center gap-1 flex-shrink-0"
+                          title="Ricarica questi contatti per una nuova campagna">
+                          <RefreshCw className="w-3 h-3" /> Richiama
+                        </button>
+                        <button onClick={() => exportSingleHistory(h)}
+                          className="text-[10px] uppercase tracking-wider font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2 py-1 rounded transition-colors flex items-center gap-1 flex-shrink-0">
+                          <DownloadCloud className="w-3 h-3" /> Esporta
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
