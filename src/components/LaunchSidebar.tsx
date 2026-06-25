@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
-import { Play, AlertTriangle, Loader2, Trash2, DownloadCloud, Save, Phone, Clock, Filter, X, StickyNote, CheckCircle2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { Play, AlertTriangle, Loader2, Trash2, DownloadCloud, Save, Phone, Clock, Filter, X, StickyNote, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -11,7 +11,7 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
     user, validContacts, contacts,
     scheduleMode, scheduledAt, concurrency,
     isLaunching, launchStatus, launchCampaign,
-    retryCampaign,
+    selectedVoicebot,
     testSingleCall, testStatus,
     campaignNote, setCampaignNote,
     businessHoursEnabled, setBusinessHoursEnabled,
@@ -78,6 +78,18 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
             <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display">Riepilogo e Avvio</h2>
           </div>
 
+          {/* Warning contatti non validi */}
+          {(invalidCount > 0 || duplicateCount > 0) && contacts.length > 0 && (
+            <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 mb-4">
+              <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                {invalidCount > 0 && <span>{invalidCount} numero{invalidCount > 1 ? 'i non valido' : ' non valido'}{duplicateCount > 0 ? ' · ' : ''}</span>}
+                {duplicateCount > 0 && <span>{duplicateCount} duplicato{duplicateCount > 1 ? 'i' : ''}</span>}
+                {' '}— verranno esclusi dall'invio
+              </p>
+            </div>
+          )}
+
           {/* Summary */}
           <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl p-4 mb-4 space-y-3">
             <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-700">
@@ -86,10 +98,32 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
                 {validContacts.length} / {contacts.length}
               </span>
             </div>
+            {selectedVoicebot && (
+              <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-700">
+                <span className="text-sm font-semibold text-slate-500">Voicebot</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white truncate max-w-[160px]" title={selectedVoicebot.nome}>
+                  {selectedVoicebot.nome} <span className="font-mono text-xs text-slate-400">({selectedVoicebot.exten})</span>
+                </span>
+              </div>
+            )}
             <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-700">
               <span className="text-sm font-semibold text-slate-500">Chiamate Simultanee</span>
               <span className="text-sm font-bold text-slate-900 dark:text-white">x{concurrency}</span>
             </div>
+            {validContacts.length > 0 && (
+              <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-700">
+                <span className="text-sm font-semibold text-slate-500">Durata stimata</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                  {(() => {
+                    const secsPerCall = 45;
+                    const totalSecs = Math.ceil(validContacts.length / concurrency) * secsPerCall;
+                    if (totalSecs < 60) return `~${totalSecs}s`;
+                    const mins = Math.ceil(totalSecs / 60);
+                    return `~${mins} min`;
+                  })()}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between items-center">
               <span className="text-sm font-semibold text-slate-500">Modalità</span>
               <span className="text-sm font-bold text-brand-600 dark:text-brand-400">
@@ -354,17 +388,10 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
                       {h.opt}{h.chunkSize > 1 ? ` · ${h.chunkSize} simul.` : ''}
                     </div>
                     {h.contactsList && h.contactsList.length > 0 && (
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => retryCampaign(h.contactsList!)}
-                          className="text-[10px] uppercase tracking-wider font-bold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded transition-colors flex items-center gap-1 flex-shrink-0"
-                          title="Ricarica questi contatti per una nuova campagna">
-                          <RefreshCw className="w-3 h-3" /> Richiama
-                        </button>
-                        <button onClick={() => exportSingleHistory(h)}
-                          className="text-[10px] uppercase tracking-wider font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2 py-1 rounded transition-colors flex items-center gap-1 flex-shrink-0">
-                          <DownloadCloud className="w-3 h-3" /> Esporta
-                        </button>
-                      </div>
+                      <button onClick={() => exportSingleHistory(h)}
+                        className="text-[10px] uppercase tracking-wider font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2 py-1 rounded transition-colors flex items-center gap-1 flex-shrink-0">
+                        <DownloadCloud className="w-3 h-3" /> Esporta
+                      </button>
                     )}
                   </div>
                 </div>
