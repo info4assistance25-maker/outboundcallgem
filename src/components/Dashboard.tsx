@@ -96,6 +96,21 @@ export function Dashboard() {
     return () => window.removeEventListener('gem:nav', handler);
   }, []);
 
+  // Titolo pagina dinamico
+  React.useEffect(() => {
+    const meta = TAB_META[activeTab];
+    document.title = meta ? `${meta.title} | GEM Outbound` : 'GEM Outbound';
+  }, [activeTab]);
+
+  // Shortcut tastiera: Esc chiude sidebar mobile
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   const meta = TAB_META[activeTab];
 
   return (
