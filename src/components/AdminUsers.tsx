@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCampaign } from '../context/CampaignContext';
 import { Users, Trash2, Plus, Loader2, Edit2, X, Save } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { ConfirmModal } from './ConfirmModal';
 
 interface EditingState {
   username: string;
@@ -49,7 +50,7 @@ export function AdminUsers() {
   }, [user]);
 
   const handleDelete = async (username: string) => {
-    if (!confirm(`Sei sicuro di voler eliminare l'utente ${username}?`)) return;
+    setConfirmDeleteUser(null);
     try {
       const res = await fetch(`/api/users/${username}`, { method: 'DELETE' });
       if (res.ok) {
@@ -280,7 +281,7 @@ export function AdminUsers() {
                         </button>
                         {u.username.toLowerCase() !== 'admin' && (
                           <button 
-                            onClick={() => handleDelete(u.username)}
+                            onClick={() => setConfirmDeleteUser(u.username)}
                             className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -381,5 +382,13 @@ export function AdminUsers() {
         </div>
       </div>
     </div>
+    <ConfirmModal
+        open={!!confirmDeleteUser}
+        title="Elimina utente"
+        message={`Vuoi eliminare l'utente "${confirmDeleteUser}"? Questa azione non può essere annullata.`}
+        confirmLabel="Elimina"
+        onConfirm={() => confirmDeleteUser && handleDelete(confirmDeleteUser)}
+        onCancel={() => setConfirmDeleteUser(null)}
+      />
   );
 }
