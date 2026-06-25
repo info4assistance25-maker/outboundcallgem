@@ -244,7 +244,7 @@ export function Step1Upload() {
                   className="w-full flex items-center justify-center gap-2 py-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-brand-600 dark:text-brand-400 font-semibold text-sm border-t border-slate-200 dark:border-slate-700 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
-                  Aggiungi Rigo
+                  Aggiungi Riga
                 </button>
               )}
             </div>
@@ -344,9 +344,9 @@ export function Step2Preview() {
               </div>
             ))}
           </div>
-          {contacts.length > 30 && (
+          {contacts.length > 50 && (
             <div className="p-3 bg-slate-50 dark:bg-slate-800/30 text-center text-xs font-semibold text-slate-400 border-t border-slate-200 dark:border-slate-700">
-              + altri {contacts.length - 30} contatti
+              + altri {contacts.length - 50} contatti
             </div>
           )}
         </div>
@@ -485,7 +485,7 @@ export function Step3Settings() {
             <AlertTriangle className="w-4 h-4 text-slate-400" />
             {concurrency === 1 && "1 chiamata alla volta — inoltro sequenziale"}
             {concurrency === 2 && "2 chiamate in parallelo"}
-            {concurrency === 3 && "3 chiamate in parallelo (Richiede piano Pro)"}
+            {concurrency === 3 && "3 chiamate in parallelo"}
           </p>
         </div>
       </div>
