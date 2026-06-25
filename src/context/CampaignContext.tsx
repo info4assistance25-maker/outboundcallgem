@@ -104,7 +104,7 @@ interface CampaignContextType {
   businessHoursConfig: { days: number[]; startHour: number; endHour: number };
   setBusinessHoursConfig: (c: { days: number[]; startHour: number; endHour: number }) => void;
 
-  historyFilter: { operator: string; dateFrom: string; dateTo: string };
+  historyFilter: { operator: string; dateFrom: string; dateTo: string; search: string };
   setHistoryFilter: (f: { operator: string; dateFrom: string; dateTo: string }) => void;
   filteredHistory: HistoryItem[];
   exportHistoryToXLSX: () => void;
@@ -141,7 +141,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [selectedVoicebot, setSelectedVoicebot] = useState<Voicebot | null>(null);
   const [businessHoursEnabled, setBusinessHoursEnabled] = useState(false);
   const [businessHoursConfig, setBusinessHoursConfig] = useState({ days: [1,2,3,4,5], startHour: 9, endHour: 19 });
-  const [historyFilter, setHistoryFilter] = useState({ operator: '', dateFrom: '', dateTo: '' });
+  const [historyFilter, setHistoryFilter] = useState({ operator: '', dateFrom: '', dateTo: '', search: '' });
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [lists, setLists] = useState<ContactList[]>([]);
   const [darkMode, setDarkMode] = useState(false);
@@ -327,6 +327,13 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     if (historyFilter.operator && !h.opt.toLowerCase().includes(historyFilter.operator.toLowerCase())) return false;
     if (historyFilter.dateFrom && new Date(h.ts) < new Date(historyFilter.dateFrom)) return false;
     if (historyFilter.dateTo && new Date(h.ts) > new Date(historyFilter.dateTo + 'T23:59:59')) return false;
+    if (historyFilter.search) {
+      const s = historyFilter.search.toLowerCase();
+      const matchOp = h.opt?.toLowerCase().includes(s);
+      const matchNote = h.note?.toLowerCase().includes(s);
+      const matchContacts = h.contactsList?.some(c => c.nome?.toLowerCase().includes(s) || c.numero?.includes(s));
+      if (!matchOp && !matchNote && !matchContacts) return false;
+    }
     return true;
   });
 
