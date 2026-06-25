@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
+import { ConfirmModal } from './ConfirmModal';
 
 export function ContactLists({ onSelectProcess }: { onSelectProcess: () => void }) {
   const { lists, saveList, deleteList, loadList, isLaunching } = useCampaign();
@@ -281,9 +282,7 @@ export function ContactLists({ onSelectProcess }: { onSelectProcess: () => void 
                   </div>
                   <button 
                     onClick={() => {
-                      if (window.confirm("Sei sicuro di voler eliminare questa lista?")) {
-                        deleteList(list.id);
-                      }
+                      setConfirmDeleteList(list.id);
                     }}
                     className="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"
                     title="Elimina lista"
@@ -321,5 +320,13 @@ export function ContactLists({ onSelectProcess }: { onSelectProcess: () => void 
         </div>
       )}
     </div>
+    <ConfirmModal
+        open={!!confirmDeleteList}
+        title="Elimina lista"
+        message="Vuoi eliminare questa lista salvata? Questa azione non può essere annullata."
+        confirmLabel="Elimina"
+        onConfirm={() => { if (confirmDeleteList) { deleteList(confirmDeleteList); setConfirmDeleteList(null); } }}
+        onCancel={() => setConfirmDeleteList(null)}
+      />
   );
 }
