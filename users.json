@@ -70,5 +70,13 @@
     "password": "Torino.1",
     "nome": "Gabriella",
     "canSchedule": true
+  },
+  {
+    "username": "test",
+    "password": "test",
+    "nome": "test",
+    "role": "Viewer",
+    "isAdmin": false,
+    "canSchedule": false
   }
 ]
