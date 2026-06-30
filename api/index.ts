@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import nodemailer from "nodemailer";
-import { hashPassword, verifyPassword, issueSessionToken, requireAuth, requireAdmin } from "../lib/auth";
+import { hashPassword, verifyPassword, issueSessionToken, requireAuth, requireAdmin } from "../lib/auth.js";
 
 const app = express();
 app.use(express.json());
