@@ -150,7 +150,9 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   // Load persistence
   useEffect(() => {
     const s = sessionStorage.getItem('gem_session');
-    if (s) setUser(JSON.parse(s));
+    const tok = localStorage.getItem('sessionToken');
+    if (s && tok) setUser(JSON.parse(s));
+    else if (s && !tok) { sessionStorage.removeItem('gem_session'); }
 
     const h = localStorage.getItem('gem_history');
     if (h) setHistory(JSON.parse(h));
