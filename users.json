@@ -1,7 +1,7 @@
 [
   {
     "username": "samuele",
-    "password": "$2a$12$FCFPDslaeZRnqItHQeT1O.gsRWRP3XycSt7N4Y99cTA2JOs0xVS.S",
+    "password": "Gem@2026!",
     "nome": "Samuele",
     "isAdmin": true,
     "canSchedule": true,
@@ -10,14 +10,14 @@
   },
   {
     "username": "admin",
-    "password": "$2a$12$bi6MJ1LypIn6EQmwc4zyf.mr85EOML35lAP/uEaEuNWnD5VaNoCGC",
+    "password": "GemAdmin1!",
     "nome": "Admin",
     "isAdmin": true,
     "canSchedule": true
   },
   {
     "username": "stefano",
-    "password": "$2a$12$WBYYiGTor5lDaS9IdZj2C.DUIWPagfJqFOghlFwKlkaJz6KV4oVFq",
+    "password": "Gem@2026!",
     "nome": "Stefano",
     "canSchedule": true,
     "role": "Admin",
@@ -27,7 +27,7 @@
   },
   {
     "username": "emiliano",
-    "password": "$2a$12$wmOBAfHlShLh.gj.EgP6E.xF31xlKp3mhxvPrNqMYmU/cKqr8rAS.",
+    "password": "Torino.1",
     "nome": "Emiliano",
     "canSchedule": true,
     "role": "Admin",
@@ -37,37 +37,37 @@
   },
   {
     "username": "miranda",
-    "password": "$2a$12$Za1kJ9XwO/18Og.nZEKTm.9QkYMj81vX0BILmkOwHf08Cobq4nYjG",
+    "password": "Torino.1",
     "nome": "Miranda",
     "canSchedule": true
   },
   {
     "username": "giovanni",
-    "password": "$2a$12$sP9002DzZ4psgMcyPfz4VeZLYpWxVsJpZ91.LYutfSPNfs3E/pSSi",
+    "password": "Torino.1",
     "nome": "Giovanni",
     "canSchedule": true
   },
   {
     "username": "giulia",
-    "password": "$2a$12$mQxuU0qkzFWzCbM3zr8fH.fmu/M2Qd9NSZgcD7NAUc8JNcz.d49dW",
+    "password": "Torino.1",
     "nome": "Giulia",
     "canSchedule": true
   },
   {
     "username": "mauro",
-    "password": "$2a$12$nOjivcYTMTcC7VPGeSsDxO.ejq6rncgFtCyuY5EWBQlEx2igLn4eO",
+    "password": "Torino.1",
     "nome": "Mauro",
     "canSchedule": true
   },
   {
     "username": "barbara",
-    "password": "$2a$12$x2WxNhjO8.6iLMjIEFUQ6.iGSC1VSyhbrZC2CbyOgQpjW1ycsnXeu",
+    "password": "Torino.1",
     "nome": "Barbara",
     "canSchedule": true
   },
   {
     "username": "gabriella",
-    "password": "$2a$12$7CkOsgjoe.F4wMxnikT5k.nYKM6Agviokmg7I09MdocRULMibQNXK",
+    "password": "Torino.1",
     "nome": "Gabriella",
     "canSchedule": true
   }
