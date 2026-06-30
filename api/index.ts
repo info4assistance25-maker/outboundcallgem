@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import nodemailer from "nodemailer";
-import { hashPassword, verifyPassword, issueSessionToken, requireAuth, requireAdmin } from "../lib/auth.js";
+import { hashPassword, verifyPassword, issueSessionToken, requireAuth, requireAdmin } from "../lib/auth";
 
 const app = express();
 app.use(express.json());
@@ -62,6 +62,7 @@ async function writeUsers(users: any[]) {
     return;
   }
   try {
+    // 1. Leggi SHA attuale
     const getRes = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
       { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
@@ -74,6 +75,7 @@ async function writeUsers(users: any[]) {
     const fileData = await getRes.json() as any;
     const sha = fileData.sha;
 
+    // 2. Scrivi contenuto aggiornato
     const content = Buffer.from(JSON.stringify(users, null, 2)).toString("base64");
     const putRes = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
@@ -111,26 +113,27 @@ app.post("/api/login", async (req, res) => {
   }
 
   const users = readUsers();
-  const userIndex = users.findIndex(
+  const user = users.find(
     (u: any) => u.username.toLowerCase() === username.toLowerCase()
   );
 
-  if (userIndex === -1 || !(await verifyPassword(password, users[userIndex].password))) {
+  if (!user || !(await verifyPassword(password, user.password))) {
     return res.status(401).json({ ok: false, error: "Credenziali errate" });
   }
 
-  const user = users[userIndex];
-  res.json({ 
-    ok: true, 
-    token: issueSessionToken({ username: user.username, isAdmin: user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === 'Admin' }),
-    username: user.username, 
-    nome: user.nome, 
-    role: user.role || (user.isAdmin ? 'Admin' : 'Editor'),
-    isAdmin: user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === 'Admin',
-    canSchedule: user.canSchedule === true,
-    email: user.email || '',
-    telefono: user.telefono || ''
-  });
+  {
+    res.json({ 
+      ok: true, 
+      token: issueSessionToken({ username: user.username, isAdmin: user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === 'Admin' }),
+      username: user.username, 
+      nome: user.nome, 
+      role: user.role || (user.isAdmin ? 'Admin' : 'Editor'),
+      isAdmin: user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === 'Admin',
+      canSchedule: user.canSchedule === true,
+      email: user.email || '',
+      telefono: user.telefono || ''
+    });
+  } 
 });
 
 app.get("/api/users", requireAuth, requireAdmin, (req, res) => {
@@ -166,7 +169,7 @@ app.put("/api/users/:username", requireAuth, requireAdmin, async (req, res) => {
   const { username } = req.params;
   const { password, nome, role, canSchedule } = req.body;
 
-  if (!password || !nome || !role) {
+  if (!nome || !role) {
     return res.status(400).json({ error: "Dati mancanti" });
   }
 
@@ -177,11 +180,11 @@ app.put("/api/users/:username", requireAuth, requireAdmin, async (req, res) => {
     return res.status(404).json({ error: "Utente non trovato" });
   }
 
-  users[index] = { 
-    ...users[index], 
-    password: await hashPassword(password), 
-    nome, 
-    role, 
+  users[index] = {
+    ...users[index],
+    ...(password ? { password: await hashPassword(password) } : {}),
+    nome,
+    role,
     isAdmin: role === 'Admin' || users[index].username.toLowerCase() === 'admin',
     canSchedule: canSchedule === true
   };
@@ -204,6 +207,7 @@ app.delete("/api/users/:username", requireAuth, requireAdmin, async (req, res) =
   await writeUsers(users);
   res.json({ ok: true });
 });
+
 
 app.post("/api/support", async (req, res) => {
   const { name, email, phone, company, subject, message } = req.body;
@@ -296,6 +300,7 @@ app.put("/api/voicebots/:id", requireAuth, requireAdmin, async (req, res) => {
   const idx = bots.findIndex((b: any) => b.id === req.params.id);
   if (idx === -1) return res.status(404).json({ ok: false, error: "Voicebot non trovato" });
   bots[idx] = { ...bots[idx], ...req.body, id: req.params.id };
+  // Salva localmente subito e rispondi, GitHub in background
   try { fs.writeFileSync(VOICEBOTS_LOCAL, JSON.stringify(bots, null, 2)); } catch {}
   res.json({ ok: true });
   writeVoicebots(bots).catch(() => {});
