@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { isValidPhoneNumber } from '../lib/utils';
-import { apiFetch } from '../lib/api';
 import * as XLSX from 'xlsx';
 
 export interface Voicebot {
@@ -150,9 +149,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   // Load persistence
   useEffect(() => {
     const s = sessionStorage.getItem('gem_session');
-    const tok = localStorage.getItem('sessionToken');
-    if (s && tok) setUser(JSON.parse(s));
-    else if (s && !tok) { sessionStorage.removeItem('gem_session'); }
+    if (s) setUser(JSON.parse(s));
 
     const h = localStorage.getItem('gem_history');
     if (h) setHistory(JSON.parse(h));
@@ -176,10 +173,6 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ username: u, password: p })
       });
       const data = await res.json();
-      if (res.ok && data.ok && data.token) {
-        localStorage.setItem('sessionToken', data.token);
-        apiFetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: data.username, nome: data.nome, action: 'login' }) }).catch(() => {});
-      }
       return data;
     } catch (err) {
       console.error(err);
@@ -200,8 +193,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
         const loggedUser = { username: data.username, nome: data.nome, role: data.role, isAdmin: data.isAdmin, canSchedule: data.canSchedule };
         setUser(loggedUser);
         sessionStorage.setItem('gem_session', JSON.stringify(loggedUser));
-        if (data.token) localStorage.setItem('sessionToken', data.token);
-        apiFetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: data.username, nome: data.nome, action: 'login' }) }).catch(() => {});
+        fetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: data.username, nome: data.nome, action: 'login' }) }).catch(() => {});
         return { ok: true };
       }
       return data;
@@ -213,7 +205,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   const updateProfile = async (email: string, telefono: string) => {
     try {
-      const res = await apiFetch('/api/me', {
+      const res = await fetch('/api/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: user?.username, email, telefono })
@@ -230,9 +222,8 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    if (user) apiFetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user.username, nome: user.nome, action: 'logout' }) }).catch(() => {});
+    if (user) fetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user.username, nome: user.nome, action: 'logout' }) }).catch(() => {});
     sessionStorage.removeItem('gem_session');
-    localStorage.removeItem('sessionToken');
     setUser(null);
   };
 
