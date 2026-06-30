@@ -1,7 +1,7 @@
 [
   {
     "username": "samuele",
-    "password": "Gem@2026!",
+    "password": "$2a$12$FCFPDslaeZRnqItHQeT1O.gsRWRP3XycSt7N4Y99cTA2JOs0xVS.S",
     "nome": "Samuele",
     "isAdmin": true,
     "canSchedule": true,
@@ -10,14 +10,14 @@
   },
   {
     "username": "admin",
-    "password": "GemAdmin1!",
+    "password": "$2a$12$bi6MJ1LypIn6EQmwc4zyf.mr85EOML35lAP/uEaEuNWnD5VaNoCGC",
     "nome": "Admin",
     "isAdmin": true,
     "canSchedule": true
   },
   {
     "username": "stefano",
-    "password": "Gem@2026!",
+    "password": "$2a$12$WBYYiGTor5lDaS9IdZj2C.DUIWPagfJqFOghlFwKlkaJz6KV4oVFq",
     "nome": "Stefano",
     "canSchedule": true,
     "role": "Admin",
@@ -27,7 +27,7 @@
   },
   {
     "username": "emiliano",
-    "password": "Torino.1",
+    "password": "$2a$12$wmOBAfHlShLh.gj.EgP6E.xF31xlKp3mhxvPrNqMYmU/cKqr8rAS.",
     "nome": "Emiliano",
     "canSchedule": true,
     "role": "Admin",
@@ -37,37 +37,37 @@
   },
   {
     "username": "miranda",
-    "password": "Torino.1",
+    "password": "$2a$12$Za1kJ9XwO/18Og.nZEKTm.9QkYMj81vX0BILmkOwHf08Cobq4nYjG",
     "nome": "Miranda",
     "canSchedule": true
   },
   {
     "username": "giovanni",
-    "password": "Torino.1",
+    "password": "$2a$12$sP9002DzZ4psgMcyPfz4VeZLYpWxVsJpZ91.LYutfSPNfs3E/pSSi",
     "nome": "Giovanni",
     "canSchedule": true
   },
   {
     "username": "giulia",
-    "password": "Torino.1",
+    "password": "$2a$12$mQxuU0qkzFWzCbM3zr8fH.fmu/M2Qd9NSZgcD7NAUc8JNcz.d49dW",
     "nome": "Giulia",
     "canSchedule": true
   },
   {
     "username": "mauro",
-    "password": "Torino.1",
+    "password": "$2a$12$nOjivcYTMTcC7VPGeSsDxO.ejq6rncgFtCyuY5EWBQlEx2igLn4eO",
     "nome": "Mauro",
     "canSchedule": true
   },
   {
     "username": "barbara",
-    "password": "Torino.1",
+    "password": "$2a$12$x2WxNhjO8.6iLMjIEFUQ6.iGSC1VSyhbrZC2CbyOgQpjW1ycsnXeu",
     "nome": "Barbara",
     "canSchedule": true
   },
   {
     "username": "gabriella",
-    "password": "Torino.1",
+    "password": "$2a$12$7CkOsgjoe.F4wMxnikT5k.nYKM6Agviokmg7I09MdocRULMibQNXK",
     "nome": "Gabriella",
     "canSchedule": true
   }
