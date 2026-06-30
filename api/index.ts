@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import nodemailer from "nodemailer";
+import { hashPassword, verifyPassword, issueSessionToken, requireAuth, requireAdmin } from "../lib/auth";
 
 const app = express();
 app.use(express.json());
@@ -61,7 +62,6 @@ async function writeUsers(users: any[]) {
     return;
   }
   try {
-    // 1. Leggi SHA attuale
     const getRes = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
       { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
@@ -74,7 +74,6 @@ async function writeUsers(users: any[]) {
     const fileData = await getRes.json() as any;
     const sha = fileData.sha;
 
-    // 2. Scrivi contenuto aggiornato
     const content = Buffer.from(JSON.stringify(users, null, 2)).toString("base64");
     const putRes = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
@@ -105,47 +104,47 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ ok: false, error: "Username e password richiesti" });
   }
 
   const users = readUsers();
-  const user = users.find(
-    (u: any) => u.username.toLowerCase() === username.toLowerCase() && u.password === password
+  const userIndex = users.findIndex(
+    (u: any) => u.username.toLowerCase() === username.toLowerCase()
   );
 
-  if (user) {
-    res.json({ 
-      ok: true, 
-      username: user.username, 
-      nome: user.nome, 
-      role: user.role || (user.isAdmin ? 'Admin' : 'Editor'),
-      isAdmin: user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === 'Admin',
-      canSchedule: user.canSchedule === true,
-      email: user.email || '',
-      telefono: user.telefono || ''
-    });
-  } else {
-    res.status(401).json({ ok: false, error: "Credenziali errate" });
+  if (userIndex === -1 || !(await verifyPassword(password, users[userIndex].password))) {
+    return res.status(401).json({ ok: false, error: "Credenziali errate" });
   }
+
+  const user = users[userIndex];
+  res.json({ 
+    ok: true, 
+    token: issueSessionToken({ username: user.username, isAdmin: user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === 'Admin' }),
+    username: user.username, 
+    nome: user.nome, 
+    role: user.role || (user.isAdmin ? 'Admin' : 'Editor'),
+    isAdmin: user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === 'Admin',
+    canSchedule: user.canSchedule === true,
+    email: user.email || '',
+    telefono: user.telefono || ''
+  });
 });
 
-app.get("/api/users", (req, res) => {
+app.get("/api/users", requireAuth, requireAdmin, (req, res) => {
   const users = readUsers();
-  // Return users without passwords for safety, though it's internal logic
   const safeUsers = users.map((u: any) => ({ 
     username: u.username, 
     nome: u.nome, 
-    password: u.password, 
     role: u.role || (u.isAdmin ? 'Admin' : 'Editor'),
     canSchedule: u.canSchedule === true
   }));
   res.json(safeUsers);
 });
 
-app.post("/api/users", async (req, res) => {
+app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
   const { username, password, nome, role, canSchedule } = req.body;
   
   if (!username || !password || !nome || !role) {
@@ -157,13 +156,13 @@ app.post("/api/users", async (req, res) => {
     return res.status(400).json({ error: "Username già esistente" });
   }
 
-  users.push({ username, password, nome, role, isAdmin: role === 'Admin', canSchedule: canSchedule === true });
+  users.push({ username, password: await hashPassword(password), nome, role, isAdmin: role === 'Admin', canSchedule: canSchedule === true });
   await writeUsers(users);
 
   res.json({ ok: true });
 });
 
-app.put("/api/users/:username", async (req, res) => {
+app.put("/api/users/:username", requireAuth, requireAdmin, async (req, res) => {
   const { username } = req.params;
   const { password, nome, role, canSchedule } = req.body;
 
@@ -180,7 +179,7 @@ app.put("/api/users/:username", async (req, res) => {
 
   users[index] = { 
     ...users[index], 
-    password, 
+    password: await hashPassword(password), 
     nome, 
     role, 
     isAdmin: role === 'Admin' || users[index].username.toLowerCase() === 'admin',
@@ -191,7 +190,7 @@ app.put("/api/users/:username", async (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/api/users/:username", async (req, res) => {
+app.delete("/api/users/:username", requireAuth, requireAdmin, async (req, res) => {
   const { username } = req.params;
   
   let users = readUsers();
@@ -205,7 +204,6 @@ app.delete("/api/users/:username", async (req, res) => {
   await writeUsers(users);
   res.json({ ok: true });
 });
-
 
 app.post("/api/support", async (req, res) => {
   const { name, email, phone, company, subject, message } = req.body;
@@ -257,7 +255,7 @@ app.post("/api/support", async (req, res) => {
 });
 
 // ── PROFILO UTENTE ──
-app.get("/api/me", (req, res) => {
+app.get("/api/me", requireAuth, (req, res) => {
   const { username } = req.query;
   if (!username) return res.status(400).json({ ok: false });
   const users = readUsers();
@@ -266,7 +264,7 @@ app.get("/api/me", (req, res) => {
   res.json({ ok: true, email: user.email || '', telefono: user.telefono || '' });
 });
 
-app.put("/api/me", async (req, res) => {
+app.put("/api/me", requireAuth, async (req, res) => {
   const { username, email, telefono } = req.body;
   if (!username) return res.status(400).json({ ok: false, error: 'Username richiesto' });
   const users = readUsers();
@@ -283,7 +281,7 @@ app.get("/api/voicebots", (_req, res) => {
   res.json({ ok: true, voicebots: readVoicebots() });
 });
 
-app.post("/api/voicebots", async (req, res) => {
+app.post("/api/voicebots", requireAuth, requireAdmin, async (req, res) => {
   const { nome, exten, context, descrizione } = req.body;
   if (!nome || !exten || !context) return res.status(400).json({ ok: false, error: "Nome, interno e contesto sono obbligatori" });
   const bots = readVoicebots();
@@ -293,18 +291,17 @@ app.post("/api/voicebots", async (req, res) => {
   res.json({ ok: true, id });
 });
 
-app.put("/api/voicebots/:id", async (req, res) => {
+app.put("/api/voicebots/:id", requireAuth, requireAdmin, async (req, res) => {
   const bots = readVoicebots();
   const idx = bots.findIndex((b: any) => b.id === req.params.id);
   if (idx === -1) return res.status(404).json({ ok: false, error: "Voicebot non trovato" });
   bots[idx] = { ...bots[idx], ...req.body, id: req.params.id };
-  // Salva localmente subito e rispondi, GitHub in background
   try { fs.writeFileSync(VOICEBOTS_LOCAL, JSON.stringify(bots, null, 2)); } catch {}
   res.json({ ok: true });
   writeVoicebots(bots).catch(() => {});
 });
 
-app.delete("/api/voicebots/:id", async (req, res) => {
+app.delete("/api/voicebots/:id", requireAuth, requireAdmin, async (req, res) => {
   const bots = readVoicebots().filter((b: any) => b.id !== req.params.id);
   try { fs.writeFileSync(VOICEBOTS_LOCAL, JSON.stringify(bots, null, 2)); } catch {}
   res.json({ ok: true });
@@ -321,7 +318,7 @@ function writeLogs(logs: any[]) {
   try { fs.writeFileSync(LOGS_PATH, JSON.stringify(logs.slice(0, 200), null, 2)); } catch {}
 }
 
-app.post("/api/access-log", (req, res) => {
+app.post("/api/access-log", requireAuth, (req, res) => {
   const { username, nome, action } = req.body;
   if (!username || !action) return res.status(400).json({ ok: false });
   const logs = readLogs();
@@ -330,7 +327,7 @@ app.post("/api/access-log", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/access-logs", (req, res) => {
+app.get("/api/access-logs", requireAuth, requireAdmin, (req, res) => {
   res.json({ logs: readLogs() });
 });
 
