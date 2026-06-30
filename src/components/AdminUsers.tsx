@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useCampaign } from '../context/CampaignContext';
 import { Users, Trash2, Plus, Loader2, Edit2, X, Save } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { apiFetch } from '../lib/api';
 import { ConfirmModal } from './ConfirmModal';
 import { SkeletonUserRow, EmptyState } from './Skeleton';
 
@@ -34,20 +33,13 @@ export function AdminUsers() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const res = await apiFetch('/api/users');
+      const res = await fetch('/api/users');
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
-      } else if (res.status === 401) {
-        setError('Sessione scaduta. Fai logout e accedi di nuovo.');
-      } else if (res.status === 403) {
-        setError('Permessi insufficienti.');
-      } else {
-        setError('Errore nel caricamento utenti.');
       }
     } catch (err) {
       console.error(err);
-      setError('Errore di rete.');
     } finally {
       setLoading(false);
     }
@@ -62,7 +54,7 @@ export function AdminUsers() {
   const handleDelete = async (username: string) => {
     setConfirmDeleteUser(null);
     try {
-      const res = await apiFetch(`/api/users/${username}`, { method: 'DELETE' });
+      const res = await fetch(`/api/users/${username}`, { method: 'DELETE' });
       if (res.ok) {
         fetchUsers();
       } else {
@@ -92,13 +84,13 @@ export function AdminUsers() {
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-    if (!editingUser.nome || !editingUser.role) {
-       alert("Compila nome e ruolo");
+    if (!editingUser.nome || !editingUser.password || !editingUser.role) {
+       alert("Compila tutti i campi");
        return;
     }
 
     try {
-      const res = await apiFetch(`/api/users/${editingUser.username}`, {
+      const res = await fetch(`/api/users/${editingUser.username}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -133,7 +125,7 @@ export function AdminUsers() {
     setIsAdding(true);
     
     try {
-      const res = await apiFetch('/api/users', {
+      const res = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -227,12 +219,12 @@ export function AdminUsers() {
                             className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
                           />
                           <span className="text-slate-500 truncate" title={u.username}>{u.username}</span>
-                          <input
-                            type="password"
-                            placeholder="Nuova password (opz.)"
-                            value={editingUser.password || ''}
+                          <input 
+                            type="text" 
+                            required
+                            value={editingUser.password}
                             onChange={e => setEditingUser({...editingUser, password: e.target.value})}
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500 placeholder:text-slate-400"
+                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
                           />
                           <select 
                             value={editingUser.role}
