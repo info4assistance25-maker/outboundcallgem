@@ -195,6 +195,36 @@ app.post(
         await writeCallResults(results);
       }
 
+      if (event.type === "call:summary:completed") {
+        const callId = event.id || event.data?.call?.id;
+        const idx = results.findIndex((r) => r.callId === callId);
+        const summary = event.data?.summary || {};
+
+        const riassunto = {
+          titolo: summary.title || null,
+          testo: summary.brief || null,
+          argomenti: summary.json?.topics || [],
+          decisioni: summary.json?.decisions || [],
+          problemi: summary.json?.issues || [],
+        };
+
+        if (idx !== -1) {
+          results[idx].riassunto = riassunto;
+        } else {
+          // riassunto arrivato prima del call:completed (raro ma possibile)
+          results.unshift({
+            callId,
+            numero: event.data?.call?.destination || null,
+            risposto: (event.data?.call?.talkTime || 0) > 0,
+            durata: event.data?.call?.talkTime || null,
+            timestamp: new Date().toISOString(),
+            trascrizione: null,
+            riassunto,
+          });
+        }
+        await writeCallResults(results);
+      }
+
       res.sendStatus(200);
     } catch (err) {
       console.error("Errore elaborazione evento Wildix webhook:", err);
