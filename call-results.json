@@ -5,7 +5,14 @@
     "risposto": true,
     "durata": 29525,
     "timestamp": "2026-07-01T14:40:20.013Z",
-    "trascrizione": null
+    "trascrizione": null,
+    "riassunto": {
+      "titolo": "Chiamata informativa breve con rifiuto cliente",
+      "testo": "L'agente ha spiegato brevemente i servizi offerti. Il cliente ha risposto di non essere interessato e ha terminato la chiamata rapidamente.",
+      "argomenti": [],
+      "decisioni": [],
+      "problemi": []
+    }
   },
   {
     "callId": "ee_ee000165_1782916728.628",
