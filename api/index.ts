@@ -22,19 +22,71 @@ const app = express();
 // perché la verifica della firma richiede il body grezzo (raw), non parsato.
 // ══════════════════════════════════════════════════════════════
 
-const CALL_RESULTS_FILE = path.join(process.cwd(), "call-results.json");
+// NOTA: il filesystem di Vercel è effimero — fs.writeFileSync su process.cwd()
+// non persiste in modo affidabile tra invocazioni diverse della funzione.
+// Usiamo quindi GitHub come storage persistente, stesso pattern già in uso
+// per users.json e voicebots.json in questo file.
+const CALL_RESULTS_REPO_PATH = "call-results.json";
 
-function readCallResults(): any[] {
+async function readCallResults(): Promise<any[]> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    console.error("GITHUB_TOKEN non configurato — impossibile leggere call-results da GitHub");
+    return [];
+  }
   try {
-    if (!fs.existsSync(CALL_RESULTS_FILE)) return [];
-    return JSON.parse(fs.readFileSync(CALL_RESULTS_FILE, "utf-8"));
-  } catch { return []; }
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CALL_RESULTS_REPO_PATH}`,
+      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
+    );
+    if (!res.ok) {
+      if (res.status === 404) return []; // file non ancora creato: prima chiamata mai ricevuta
+      console.error("GitHub GET call-results error:", res.status, await res.text());
+      return [];
+    }
+    const fileData = await res.json() as any;
+    const content = Buffer.from(fileData.content, "base64").toString("utf-8");
+    return JSON.parse(content);
+  } catch (err) {
+    console.error("Error reading call-results from GitHub:", err);
+    return [];
+  }
 }
 
-function writeCallResults(results: any[]) {
+async function writeCallResults(results: any[]) {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    console.error("GITHUB_TOKEN non configurato — impossibile salvare call-results su GitHub");
+    return;
+  }
   try {
-    fs.writeFileSync(CALL_RESULTS_FILE, JSON.stringify(results.slice(0, 5000), null, 2));
-  } catch (err) { console.error("Error writing call-results.json", err); }
+    // Serve lo sha attuale del file per poterlo sovrascrivere (se esiste già)
+    const getRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CALL_RESULTS_REPO_PATH}`,
+      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
+    );
+    const sha = getRes.ok ? (await getRes.json() as any).sha : undefined;
+
+    const content = Buffer.from(JSON.stringify(results.slice(0, 5000), null, 2)).toString("base64");
+    const putRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CALL_RESULTS_REPO_PATH}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: "application/vnd.github.v3+json",
+          "Content-Type": "application/json",
+          "User-Agent": "gem-app",
+        },
+        body: JSON.stringify({ message: "chore: update call results", content, ...(sha ? { sha } : {}) }),
+      }
+    );
+    if (!putRes.ok) {
+      console.error("GitHub PUT call-results error:", putRes.status, await putRes.text());
+    }
+  } catch (err) {
+    console.error("Error writing call-results to GitHub:", err);
+  }
 }
 
 function verifyWildixSignature(rawBody: string, signature: string | undefined): boolean {
@@ -58,7 +110,7 @@ function verifyWildixSignature(rawBody: string, signature: string | undefined): 
 app.post(
   "/api/wildix-webhook",
   express.raw({ type: "application/json" }), // body grezzo, necessario per la firma
-  (req, res) => {
+  async (req, res) => {
     const rawBody = req.body.toString("utf-8");
     const signature = req.headers["x-signature"] as string | undefined;
 
@@ -74,51 +126,68 @@ app.post(
       return res.status(400).json({ ok: false, error: "Invalid JSON" });
     }
 
-    const results = readCallResults();
+    // NOTA: su Vercel il codice non è garantito proseguire dopo l'invio
+    // della risposta (niente "fire and forget"), quindi attendiamo il
+    // completamento della scrittura su GitHub PRIMA di rispondere 200.
+    try {
+      const results = await readCallResults();
 
-    if (event.type === "call:completed") {
-      const flow = event.data?.flows?.[0] || {};
-      const numero = flow.callee?.phone || event.data?.destination || null;
-      const risposto = (flow.talkTime || 0) > 0;
+      if (event.type === "call:completed") {
+        const flow = event.data?.flows?.[0] || {};
+        const numero = flow.callee?.phone || event.data?.destination || null;
+        const risposto = (flow.talkTime || 0) > 0;
 
-      results.unshift({
-        callId: event.id,
-        numero,
-        risposto,
-        durata: flow.talkTime || 0,
-        timestamp: new Date(event.time).toISOString(),
-        trascrizione: null,
-      });
-      writeCallResults(results);
-    }
-
-    if (event.type === "call:transcription:completed") {
-      const callId = event.id || event.data?.id;
-      const idx = results.findIndex((r) => r.callId === callId);
-      const trascrizione = event.data?.transcription || event.data?.summary || null;
-
-      if (idx !== -1) {
-        results[idx].trascrizione = trascrizione;
-      } else {
-        // trascrizione arrivata prima del call:completed (raro ma possibile)
         results.unshift({
-          callId,
-          numero: null,
-          risposto: null,
-          durata: null,
-          timestamp: new Date().toISOString(),
-          trascrizione,
+          callId: event.id,
+          numero,
+          risposto,
+          durata: flow.talkTime || 0,
+          timestamp: new Date(event.time).toISOString(),
+          trascrizione: null,
         });
+        await writeCallResults(results);
       }
-      writeCallResults(results);
-    }
 
-    res.sendStatus(200);
+      if (event.type === "call:transcription:completed") {
+        const callId = event.id || event.data?.call?.id;
+        const idx = results.findIndex((r) => r.callId === callId);
+
+        // La trascrizione arriva come array di "chunks" (battute per parlante),
+        // non come singolo campo transcription/summary.
+        const chunks = event.data?.chunks || [];
+        const trascrizione = chunks
+          .map((c: any) => `[${c.time}] ${c.name}: ${c.text}`)
+          .join("\n");
+
+        if (idx !== -1) {
+          results[idx].trascrizione = trascrizione;
+        } else {
+          // trascrizione arrivata prima del call:completed (raro ma possibile)
+          results.unshift({
+            callId,
+            numero: event.data?.call?.destination || null,
+            risposto: (event.data?.call?.talkTime || 0) > 0,
+            durata: event.data?.call?.talkTime || null,
+            timestamp: new Date().toISOString(),
+            trascrizione,
+          });
+        }
+        await writeCallResults(results);
+      }
+
+      res.sendStatus(200);
+    } catch (err) {
+      console.error("Errore elaborazione evento Wildix webhook:", err);
+      // Rispondiamo comunque 200: l'evento è stato ricevuto e verificato,
+      // un 5xx farebbe scattare inutili retry da parte di Wildix.
+      res.sendStatus(200);
+    }
   }
 );
 
-app.get("/api/call-results", (_req, res) => {
-  res.json({ ok: true, results: readCallResults() });
+app.get("/api/call-results", async (_req, res) => {
+  const results = await readCallResults();
+  res.json({ ok: true, results });
 });
 
 // ══════════════════════════════════════════════════════════════
