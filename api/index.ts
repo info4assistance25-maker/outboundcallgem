@@ -4,6 +4,16 @@ import fs from "fs";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 
+// IMPORTANTE: disabilita il body-parsing automatico di Vercel.
+// Senza questo, Vercel consuma lo stream della richiesta prima che
+// express.raw() possa leggerlo, rendendo impossibile la verifica
+// della firma HMAC del webhook Wildix (causa dei 401 ricevuti finora).
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 const app = express();
 
 // ══════════════════════════════════════════════════════════════
