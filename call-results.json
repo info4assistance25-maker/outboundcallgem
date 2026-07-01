@@ -5,7 +5,20 @@
     "risposto": true,
     "durata": 42938,
     "timestamp": "2026-07-01T14:39:46.631Z",
-    "trascrizione": null
+    "trascrizione": null,
+    "riassunto": {
+      "titolo": "Conferma appuntamento test con assistente vocale",
+      "testo": "L'assistente vocale di Cossinia Medica ha chiamato per confermare un appuntamento per un test il 8 luglio. Samuele Galli ha confermato l'appuntamento dopo una breve interazione. La chiamata si è conclusa con i ringraziamenti dell'assistente e gli auguri di buona giornata.",
+      "argomenti": [
+        "Promemoria appuntamento con assistente vocale",
+        "Conferma appuntamento test per il 08 luglio",
+        "Interazione breve e informale tra assistente e cliente"
+      ],
+      "decisioni": [
+        "Conferma definitiva dell'appuntamento per il test il 08 luglio alle ore 12:12."
+      ],
+      "problemi": []
+    }
   },
   {
     "callId": "ee_ee000165_1782915169.596",
