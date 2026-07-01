@@ -107,6 +107,78 @@ function verifyWildixSignature(rawBody: string, signature: string | undefined): 
   }
 }
 
+// Normalizza un numero in formato E.164-ish (solo cifre + prefisso +),
+// per evitare mismatch tra "+393533266370", "3533266370", "393533266370", ecc.
+function normalizePhone(numero: string | null | undefined): string | null {
+  if (!numero) return null;
+  const cleaned = numero.replace(/[^\d+]/g, "");
+  if (!cleaned) return null;
+  if (cleaned.startsWith("+")) return cleaned;
+  if (cleaned.startsWith("00")) return "+" + cleaned.slice(2);
+  if (cleaned.startsWith("39") && cleaned.length >= 11) return "+" + cleaned;
+  if (cleaned.length === 10) return "+39" + cleaned; // numero italiano senza prefisso
+  return cleaned;
+}
+
+// ── Nome contatto: lookup numero → nome, popolato dall'app al lancio campagna ──
+const CONTACT_NAMES_REPO_PATH = "contact-names.json";
+
+async function readContactNames(): Promise<Record<string, string>> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return {};
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CONTACT_NAMES_REPO_PATH}`,
+      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
+    );
+    if (!res.ok) return {};
+    const fileData = await res.json() as any;
+    return JSON.parse(Buffer.from(fileData.content, "base64").toString("utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+async function writeContactNames(map: Record<string, string>) {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return;
+  try {
+    const getRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CONTACT_NAMES_REPO_PATH}`,
+      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
+    );
+    const sha = getRes.ok ? (await getRes.json() as any).sha : undefined;
+    const content = Buffer.from(JSON.stringify(map, null, 2)).toString("base64");
+    await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CONTACT_NAMES_REPO_PATH}`,
+      {
+        method: "PUT",
+        headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "Content-Type": "application/json", "User-Agent": "gem-app" },
+        body: JSON.stringify({ message: "chore: update contact names", content, ...(sha ? { sha } : {}) }),
+      }
+    );
+  } catch (err) {
+    console.error("Error writing contact-names to GitHub:", err);
+  }
+}
+
+// Endpoint chiamato dal frontend al lancio di una campagna, per registrare
+// l'associazione numero → nome contatto (serve ad arricchire i risultati
+// del voicebot, dato che il webhook Wildix restituisce solo il numero).
+app.post("/api/register-campaign-contacts", express.json(), async (req, res) => {
+  const { contacts } = req.body as { contacts: { numero: string; nome: string }[] };
+  if (!Array.isArray(contacts)) {
+    return res.status(400).json({ ok: false, error: "contacts deve essere un array" });
+  }
+  const map = await readContactNames();
+  for (const c of contacts) {
+    const n = normalizePhone(c.numero);
+    if (n && c.nome) map[n] = c.nome;
+  }
+  await writeContactNames(map);
+  res.json({ ok: true, count: contacts.length });
+});
+
 app.post(
   "/api/wildix-webhook",
   express.raw({ type: "application/json" }), // body grezzo, necessario per la firma
@@ -151,20 +223,29 @@ app.post(
     // completamento della scrittura su GitHub PRIMA di rispondere 200.
     try {
       const results = await readCallResults();
+      const contactNames = await readContactNames();
 
       if (event.type === "call:completed") {
         const flow = event.data?.flows?.[0] || {};
-        const numero = flow.callee?.phone || event.data?.destination || null;
+        const numero = normalizePhone(flow.callee?.phone || event.data?.destination || null);
         const risposto = (flow.talkTime || 0) > 0;
+        const nome = numero ? contactNames[numero] || null : null;
 
-        results.unshift({
+        const idx = results.findIndex((r) => r.callId === event.id);
+        const entry = {
           callId: event.id,
           numero,
+          nome,
           risposto,
           durata: flow.talkTime || 0,
           timestamp: new Date(event.time).toISOString(),
           trascrizione: null,
-        });
+        };
+        if (idx !== -1) {
+          results[idx] = { ...results[idx], ...entry, trascrizione: results[idx].trascrizione, riassunto: results[idx].riassunto };
+        } else {
+          results.unshift(entry);
+        }
         await writeCallResults(results);
       }
 
@@ -183,9 +264,11 @@ app.post(
           results[idx].trascrizione = trascrizione;
         } else {
           // trascrizione arrivata prima del call:completed (raro ma possibile)
+          const numero = normalizePhone(event.data?.call?.destination || null);
           results.unshift({
             callId,
-            numero: event.data?.call?.destination || null,
+            numero,
+            nome: numero ? contactNames[numero] || null : null,
             risposto: (event.data?.call?.talkTime || 0) > 0,
             durata: event.data?.call?.talkTime || null,
             timestamp: new Date().toISOString(),
@@ -212,9 +295,11 @@ app.post(
           results[idx].riassunto = riassunto;
         } else {
           // riassunto arrivato prima del call:completed (raro ma possibile)
+          const numero = normalizePhone(event.data?.call?.destination || null);
           results.unshift({
             callId,
-            numero: event.data?.call?.destination || null,
+            numero,
+            nome: numero ? contactNames[numero] || null : null,
             risposto: (event.data?.call?.talkTime || 0) > 0,
             durata: event.data?.call?.talkTime || null,
             timestamp: new Date().toISOString(),
@@ -223,6 +308,34 @@ app.post(
           });
         }
         await writeCallResults(results);
+
+        // ── Notifica: se il paziente ha rifiutato/non ha confermato, avvisa un operatore ──
+        const rifiutato = riassunto.decisioni.some((d: string) => /non conferm|rifiut/i.test(d));
+        if (rifiutato && process.env.SMTP_USER && process.env.NOTIFY_EMAIL) {
+          try {
+            const transporter = nodemailer.createTransport({
+              host: process.env.SMTP_HOST || "smtp.gmail.com",
+              port: parseInt(process.env.SMTP_PORT || "587"),
+              secure: process.env.SMTP_SECURE === "true",
+              auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+            });
+            const entry = results.find((r) => r.callId === callId);
+            await transporter.sendMail({
+              from: `"GEM Voicebot Alert" <${process.env.SMTP_USER}>`,
+              to: process.env.NOTIFY_EMAIL,
+              subject: `⚠️ Appuntamento rifiutato — ${entry?.nome || entry?.numero || callId}`,
+              html: `
+                <h2>Appuntamento non confermato</h2>
+                <p><strong>Contatto:</strong> ${entry?.nome || '—'} (${entry?.numero || '—'})</p>
+                <p><strong>Riassunto:</strong> ${riassunto.testo || '—'}</p>
+                <p><strong>Decisione rilevata:</strong> ${riassunto.decisioni.join('; ')}</p>
+                <p>Serve un follow-up manuale.</p>
+              `,
+            });
+          } catch (err) {
+            console.error("Errore invio notifica rifiuto:", err);
+          }
+        }
       }
 
       res.sendStatus(200);
