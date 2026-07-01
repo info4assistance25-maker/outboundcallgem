@@ -26,22 +26,28 @@ import { neon } from "@neondatabase/serverless";
 
 const sql = neon(process.env.DATABASE_URL!);
 
-async function readCallResults(): Promise<any[]> {
+async function readCallResults(limit = 50, offset = 0): Promise<{ rows: any[]; total: number }> {
   try {
-    const rows = await sql`SELECT * FROM call_results ORDER BY ts DESC LIMIT 5000`;
-    return rows.map((r: any) => ({
-      callId: r.call_id,
-      numero: r.numero,
-      nome: r.nome,
-      risposto: r.risposto,
-      durata: r.durata,
-      timestamp: r.ts,
-      trascrizione: r.trascrizione,
-      riassunto: r.riassunto,
-    }));
+    const rows = await sql`
+      SELECT * FROM call_results ORDER BY ts DESC LIMIT ${limit} OFFSET ${offset}
+    `;
+    const countRes = await sql`SELECT COUNT(*)::int AS total FROM call_results`;
+    return {
+      rows: (rows as any[]).map((r: any) => ({
+        callId: r.call_id,
+        numero: r.numero,
+        nome: r.nome,
+        risposto: r.risposto,
+        durata: r.durata,
+        timestamp: r.ts,
+        trascrizione: r.trascrizione,
+        riassunto: r.riassunto,
+      })),
+      total: (countRes[0] as any).total,
+    };
   } catch (err) {
     console.error("Error reading call_results from Postgres:", err);
-    return [];
+    return { rows: [], total: 0 };
   }
 }
 
@@ -118,6 +124,77 @@ async function upsertContactName(numero: string, nome: string) {
   }
 }
 
+// ── Log eventi webhook scartati (firma invalida, chiamate non-voicebot) ──
+// Utile per debug senza dover rifrugare i log Vercel.
+async function logWebhookEvent(eventType: string, reason: string) {
+  try {
+    await sql`INSERT INTO webhook_log (event_type, reason) VALUES (${eventType}, ${reason})`;
+  } catch (err) {
+    console.error("Error writing webhook_log:", err);
+  }
+}
+
+// ── Follow-up: appuntamenti che richiedono un intervento umano ──
+// (disdetta, richiesta informazioni, trasferimento, non risposto)
+async function createFollowup(entry: { callId: string; numero: string | null; nome: string | null; motivo: string }) {
+  try {
+    await sql`
+      INSERT INTO followups (call_id, numero, nome, motivo)
+      VALUES (${entry.callId}, ${entry.numero}, ${entry.nome}, ${entry.motivo})
+    `;
+  } catch (err) {
+    console.error("Error creating followup:", err);
+  }
+}
+
+app.get("/api/followups", async (req, res) => {
+  const stato = (req.query.stato as string) || "pending";
+  try {
+    const rows = await sql`
+      SELECT * FROM followups WHERE stato = ${stato} ORDER BY created_at DESC LIMIT 200
+    `;
+    res.json({ ok: true, followups: rows });
+  } catch (err) {
+    console.error("Error reading followups:", err);
+    res.status(500).json({ ok: false, followups: [] });
+  }
+});
+
+app.post("/api/followups/:id/done", express.json(), async (req, res) => {
+  try {
+    await sql`UPDATE followups SET stato = 'done' WHERE id = ${parseInt(req.params.id)}`;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Error updating followup:", err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// ── Statistiche aggregate sui risultati del voicebot ──
+app.get("/api/voicebot-stats", async (_req, res) => {
+  try {
+    const totals = await sql`
+      SELECT
+        COUNT(*)::int AS totale,
+        COUNT(*) FILTER (WHERE risposto = true)::int AS risposte,
+        COUNT(*) FILTER (WHERE risposto = false)::int AS non_risposte,
+        AVG(durata) FILTER (WHERE durata > 0)::int AS durata_media_ms
+      FROM call_results
+    `;
+    const perGiorno = await sql`
+      SELECT DATE(ts) AS giorno, COUNT(*)::int AS totale
+      FROM call_results
+      WHERE ts > now() - interval '30 days'
+      GROUP BY DATE(ts)
+      ORDER BY giorno ASC
+    `;
+    res.json({ ok: true, totali: totals[0], perGiorno });
+  } catch (err) {
+    console.error("Error reading voicebot-stats:", err);
+    res.status(500).json({ ok: false });
+  }
+});
+
 // Endpoint chiamato dal frontend al lancio di una campagna, per registrare
 // l'associazione numero → nome contatto (serve ad arricchire i risultati
 // del voicebot, dato che il webhook Wildix restituisce solo il numero).
@@ -142,6 +219,7 @@ app.post(
 
     if (!verifyWildixSignature(rawBody, signature)) {
       console.warn("Wildix webhook: firma non valida, richiesta rifiutata");
+      logWebhookEvent("unknown", "invalid-signature").catch(() => {});
       return res.status(401).json({ ok: false, error: "Invalid signature" });
     }
 
@@ -169,6 +247,7 @@ app.post(
     if (!isVoicebotCall(event)) {
       // Non è una chiamata del voicebot: la ignoriamo, ma rispondiamo comunque 200
       // per evitare che Wildix la re-invii inutilmente come se fosse fallita.
+      logWebhookEvent(event.type, "not-voicebot").catch(() => {});
       return res.sendStatus(200);
     }
 
@@ -245,9 +324,22 @@ app.post(
           riassunto,
         });
 
-        // ── Notifica: se il paziente ha rifiutato/non ha confermato, avvisa un operatore ──
-        const rifiutato = riassunto.decisioni.some((d: string) => /non conferm|rifiut/i.test(d));
-        if (rifiutato && process.env.SMTP_USER && process.env.NOTIFY_EMAIL) {
+        // ── Follow-up: qualsiasi esito che richiede intervento umano ──
+        const testoCompleto = [riassunto.testo, ...riassunto.decisioni, ...riassunto.problemi].join(" ").toLowerCase();
+        let motivoFollowup: string | null = null;
+        if (/non conferm|rifiut/.test(testoCompleto)) motivoFollowup = "Appuntamento rifiutato";
+        else if (/disdett|riprogramm/.test(testoCompleto)) motivoFollowup = "Disdetta / da riprogrammare";
+        else if (/informazio.*trasfer|trasfer.*informazio/.test(testoCompleto)) motivoFollowup = "Richiesta informazioni — trasferito";
+        else if (/trasferit.*assist|assist.*trasferit/.test(testoCompleto)) motivoFollowup = "Paziente da assistere";
+        else if (/loop/.test(testoCompleto)) motivoFollowup = "Conversazione in loop — trasferito";
+        else if (/non trovat/.test(testoCompleto)) motivoFollowup = "Appuntamento non trovato";
+
+        if (motivoFollowup) {
+          await createFollowup({ callId, numero, nome, motivo: motivoFollowup });
+        }
+
+        // ── Notifica: qualsiasi esito che richiede un operatore ──
+        if (motivoFollowup && process.env.SMTP_USER && process.env.NOTIFY_EMAIL) {
           try {
             const transporter = nodemailer.createTransport({
               host: process.env.SMTP_HOST || "smtp.gmail.com",
@@ -258,12 +350,12 @@ app.post(
             await transporter.sendMail({
               from: `"GEM Voicebot Alert" <${process.env.SMTP_USER}>`,
               to: process.env.NOTIFY_EMAIL,
-              subject: `⚠️ Appuntamento rifiutato — ${nome || numero || callId}`,
+              subject: `⚠️ ${motivoFollowup} — ${nome || numero || callId}`,
               html: `
-                <h2>Appuntamento non confermato</h2>
+                <h2>${motivoFollowup}</h2>
                 <p><strong>Contatto:</strong> ${nome || '—'} (${numero || '—'})</p>
                 <p><strong>Riassunto:</strong> ${riassunto.testo || '—'}</p>
-                <p><strong>Decisione rilevata:</strong> ${riassunto.decisioni.join('; ')}</p>
+                <p><strong>Decisione rilevata:</strong> ${riassunto.decisioni.join('; ') || '—'}</p>
                 <p>Serve un follow-up manuale.</p>
               `,
             });
@@ -283,9 +375,11 @@ app.post(
   }
 );
 
-app.get("/api/call-results", async (_req, res) => {
-  const results = await readCallResults();
-  res.json({ ok: true, results });
+app.get("/api/call-results", async (req, res) => {
+  const limit = Math.min(parseInt((req.query.limit as string) || "50"), 200);
+  const offset = parseInt((req.query.offset as string) || "0");
+  const { rows, total } = await readCallResults(limit, offset);
+  res.json({ ok: true, results: rows, total, limit, offset });
 });
 
 // ══════════════════════════════════════════════════════════════
