@@ -22,70 +22,44 @@ const app = express();
 // perché la verifica della firma richiede il body grezzo (raw), non parsato.
 // ══════════════════════════════════════════════════════════════
 
-// NOTA: il filesystem di Vercel è effimero — fs.writeFileSync su process.cwd()
-// non persiste in modo affidabile tra invocazioni diverse della funzione.
-// Usiamo quindi GitHub come storage persistente, stesso pattern già in uso
-// per users.json e voicebots.json in questo file.
-const CALL_RESULTS_REPO_PATH = "call-results.json";
+import { neon } from "@neondatabase/serverless";
+
+const sql = neon(process.env.DATABASE_URL!);
 
 async function readCallResults(): Promise<any[]> {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    console.error("GITHUB_TOKEN non configurato — impossibile leggere call-results da GitHub");
-    return [];
-  }
   try {
-    const res = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CALL_RESULTS_REPO_PATH}`,
-      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
-    );
-    if (!res.ok) {
-      if (res.status === 404) return []; // file non ancora creato: prima chiamata mai ricevuta
-      console.error("GitHub GET call-results error:", res.status, await res.text());
-      return [];
-    }
-    const fileData = await res.json() as any;
-    const content = Buffer.from(fileData.content, "base64").toString("utf-8");
-    return JSON.parse(content);
+    const rows = await sql`SELECT * FROM call_results ORDER BY ts DESC LIMIT 5000`;
+    return rows.map((r: any) => ({
+      callId: r.call_id,
+      numero: r.numero,
+      nome: r.nome,
+      risposto: r.risposto,
+      durata: r.durata,
+      timestamp: r.ts,
+      trascrizione: r.trascrizione,
+      riassunto: r.riassunto,
+    }));
   } catch (err) {
-    console.error("Error reading call-results from GitHub:", err);
+    console.error("Error reading call_results from Postgres:", err);
     return [];
   }
 }
 
-async function writeCallResults(results: any[]) {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    console.error("GITHUB_TOKEN non configurato — impossibile salvare call-results su GitHub");
-    return;
-  }
+async function upsertCallResult(entry: any) {
   try {
-    // Serve lo sha attuale del file per poterlo sovrascrivere (se esiste già)
-    const getRes = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CALL_RESULTS_REPO_PATH}`,
-      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
-    );
-    const sha = getRes.ok ? (await getRes.json() as any).sha : undefined;
-
-    const content = Buffer.from(JSON.stringify(results.slice(0, 5000), null, 2)).toString("base64");
-    const putRes = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CALL_RESULTS_REPO_PATH}`,
-      {
-        method: "PUT",
-        headers: {
-          Authorization: `token ${token}`,
-          Accept: "application/vnd.github.v3+json",
-          "Content-Type": "application/json",
-          "User-Agent": "gem-app",
-        },
-        body: JSON.stringify({ message: "chore: update call results", content, ...(sha ? { sha } : {}) }),
-      }
-    );
-    if (!putRes.ok) {
-      console.error("GitHub PUT call-results error:", putRes.status, await putRes.text());
-    }
+    await sql`
+      INSERT INTO call_results (call_id, numero, nome, risposto, durata, ts, trascrizione, riassunto)
+      VALUES (${entry.callId}, ${entry.numero}, ${entry.nome || null}, ${entry.risposto}, ${entry.durata}, ${entry.timestamp}, ${entry.trascrizione}, ${entry.riassunto ? JSON.stringify(entry.riassunto) : null})
+      ON CONFLICT (call_id) DO UPDATE SET
+        numero = COALESCE(EXCLUDED.numero, call_results.numero),
+        nome = COALESCE(EXCLUDED.nome, call_results.nome),
+        risposto = COALESCE(EXCLUDED.risposto, call_results.risposto),
+        durata = COALESCE(EXCLUDED.durata, call_results.durata),
+        trascrizione = COALESCE(EXCLUDED.trascrizione, call_results.trascrizione),
+        riassunto = COALESCE(EXCLUDED.riassunto, call_results.riassunto)
+    `;
   } catch (err) {
-    console.error("Error writing call-results to GitHub:", err);
+    console.error("Error upserting call_results in Postgres:", err);
   }
 }
 
@@ -121,44 +95,26 @@ function normalizePhone(numero: string | null | undefined): string | null {
 }
 
 // ── Nome contatto: lookup numero → nome, popolato dall'app al lancio campagna ──
-const CONTACT_NAMES_REPO_PATH = "contact-names.json";
-
 async function readContactNames(): Promise<Record<string, string>> {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) return {};
   try {
-    const res = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CONTACT_NAMES_REPO_PATH}`,
-      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
-    );
-    if (!res.ok) return {};
-    const fileData = await res.json() as any;
-    return JSON.parse(Buffer.from(fileData.content, "base64").toString("utf-8"));
-  } catch {
+    const rows = await sql`SELECT numero, nome FROM contact_names`;
+    const map: Record<string, string> = {};
+    for (const r of rows as any[]) map[r.numero] = r.nome;
+    return map;
+  } catch (err) {
+    console.error("Error reading contact_names from Postgres:", err);
     return {};
   }
 }
 
-async function writeContactNames(map: Record<string, string>) {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) return;
+async function upsertContactName(numero: string, nome: string) {
   try {
-    const getRes = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CONTACT_NAMES_REPO_PATH}`,
-      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
-    );
-    const sha = getRes.ok ? (await getRes.json() as any).sha : undefined;
-    const content = Buffer.from(JSON.stringify(map, null, 2)).toString("base64");
-    await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CONTACT_NAMES_REPO_PATH}`,
-      {
-        method: "PUT",
-        headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "Content-Type": "application/json", "User-Agent": "gem-app" },
-        body: JSON.stringify({ message: "chore: update contact names", content, ...(sha ? { sha } : {}) }),
-      }
-    );
+    await sql`
+      INSERT INTO contact_names (numero, nome) VALUES (${numero}, ${nome})
+      ON CONFLICT (numero) DO UPDATE SET nome = EXCLUDED.nome
+    `;
   } catch (err) {
-    console.error("Error writing contact-names to GitHub:", err);
+    console.error("Error upserting contact_names in Postgres:", err);
   }
 }
 
@@ -170,12 +126,10 @@ app.post("/api/register-campaign-contacts", express.json(), async (req, res) => 
   if (!Array.isArray(contacts)) {
     return res.status(400).json({ ok: false, error: "contacts deve essere un array" });
   }
-  const map = await readContactNames();
   for (const c of contacts) {
     const n = normalizePhone(c.numero);
-    if (n && c.nome) map[n] = c.nome;
+    if (n && c.nome) await upsertContactName(n, c.nome);
   }
-  await writeContactNames(map);
   res.json({ ok: true, count: contacts.length });
 });
 
@@ -218,11 +172,10 @@ app.post(
       return res.sendStatus(200);
     }
 
-    // NOTA: su Vercel il codice non è garantito proseguire dopo l'invio
-    // della risposta (niente "fire and forget"), quindi attendiamo il
-    // completamento della scrittura su GitHub PRIMA di rispondere 200.
+    // NOTA: con Postgres l'UPSERT gestisce da solo il merge dei campi già
+    // presenti (COALESCE), quindi non serve più leggere tutto l'array e
+    // cercare l'indice manualmente come si faceva con GitHub.
     try {
-      const results = await readCallResults();
       const contactNames = await readContactNames();
 
       if (event.type === "call:completed") {
@@ -231,8 +184,7 @@ app.post(
         const risposto = (flow.talkTime || 0) > 0;
         const nome = numero ? contactNames[numero] || null : null;
 
-        const idx = results.findIndex((r) => r.callId === event.id);
-        const entry = {
+        await upsertCallResult({
           callId: event.id,
           numero,
           nome,
@@ -240,18 +192,12 @@ app.post(
           durata: flow.talkTime || 0,
           timestamp: new Date(event.time).toISOString(),
           trascrizione: null,
-        };
-        if (idx !== -1) {
-          results[idx] = { ...results[idx], ...entry, trascrizione: results[idx].trascrizione, riassunto: results[idx].riassunto };
-        } else {
-          results.unshift(entry);
-        }
-        await writeCallResults(results);
+        });
       }
 
       if (event.type === "call:transcription:completed") {
         const callId = event.id || event.data?.call?.id;
-        const idx = results.findIndex((r) => r.callId === callId);
+        const numero = normalizePhone(event.data?.call?.destination || null);
 
         // La trascrizione arriva come array di "chunks" (battute per parlante),
         // non come singolo campo transcription/summary.
@@ -260,27 +206,21 @@ app.post(
           .map((c: any) => `[${c.time}] ${c.name}: ${c.text}`)
           .join("\n");
 
-        if (idx !== -1) {
-          results[idx].trascrizione = trascrizione;
-        } else {
-          // trascrizione arrivata prima del call:completed (raro ma possibile)
-          const numero = normalizePhone(event.data?.call?.destination || null);
-          results.unshift({
-            callId,
-            numero,
-            nome: numero ? contactNames[numero] || null : null,
-            risposto: (event.data?.call?.talkTime || 0) > 0,
-            durata: event.data?.call?.talkTime || null,
-            timestamp: new Date().toISOString(),
-            trascrizione,
-          });
-        }
-        await writeCallResults(results);
+        await upsertCallResult({
+          callId,
+          numero,
+          nome: numero ? contactNames[numero] || null : null,
+          risposto: (event.data?.call?.talkTime || 0) > 0,
+          durata: event.data?.call?.talkTime || null,
+          timestamp: new Date().toISOString(),
+          trascrizione,
+        });
       }
 
       if (event.type === "call:summary:completed") {
         const callId = event.id || event.data?.call?.id;
-        const idx = results.findIndex((r) => r.callId === callId);
+        const numero = normalizePhone(event.data?.call?.destination || null);
+        const nome = numero ? contactNames[numero] || null : null;
         const summary = event.data?.summary || {};
 
         const riassunto = {
@@ -291,23 +231,16 @@ app.post(
           problemi: summary.json?.issues || [],
         };
 
-        if (idx !== -1) {
-          results[idx].riassunto = riassunto;
-        } else {
-          // riassunto arrivato prima del call:completed (raro ma possibile)
-          const numero = normalizePhone(event.data?.call?.destination || null);
-          results.unshift({
-            callId,
-            numero,
-            nome: numero ? contactNames[numero] || null : null,
-            risposto: (event.data?.call?.talkTime || 0) > 0,
-            durata: event.data?.call?.talkTime || null,
-            timestamp: new Date().toISOString(),
-            trascrizione: null,
-            riassunto,
-          });
-        }
-        await writeCallResults(results);
+        await upsertCallResult({
+          callId,
+          numero,
+          nome,
+          risposto: (event.data?.call?.talkTime || 0) > 0,
+          durata: event.data?.call?.talkTime || null,
+          timestamp: new Date().toISOString(),
+          trascrizione: null,
+          riassunto,
+        });
 
         // ── Notifica: se il paziente ha rifiutato/non ha confermato, avvisa un operatore ──
         const rifiutato = riassunto.decisioni.some((d: string) => /non conferm|rifiut/i.test(d));
@@ -319,14 +252,13 @@ app.post(
               secure: process.env.SMTP_SECURE === "true",
               auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
             });
-            const entry = results.find((r) => r.callId === callId);
             await transporter.sendMail({
               from: `"GEM Voicebot Alert" <${process.env.SMTP_USER}>`,
               to: process.env.NOTIFY_EMAIL,
-              subject: `⚠️ Appuntamento rifiutato — ${entry?.nome || entry?.numero || callId}`,
+              subject: `⚠️ Appuntamento rifiutato — ${nome || numero || callId}`,
               html: `
                 <h2>Appuntamento non confermato</h2>
-                <p><strong>Contatto:</strong> ${entry?.nome || '—'} (${entry?.numero || '—'})</p>
+                <p><strong>Contatto:</strong> ${nome || '—'} (${numero || '—'})</p>
                 <p><strong>Riassunto:</strong> ${riassunto.testo || '—'}</p>
                 <p><strong>Decisione rilevata:</strong> ${riassunto.decisioni.join('; ')}</p>
                 <p>Serve un follow-up manuale.</p>
