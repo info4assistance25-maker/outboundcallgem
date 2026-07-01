@@ -1,9 +1,119 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import nodemailer from "nodemailer";
 
 const app = express();
+
+// ══════════════════════════════════════════════════════════════
+// WILDIX WEBHOOK: risultati chiamate + trascrizioni
+// IMPORTANTE: questa rotta va registrata PRIMA di app.use(express.json())
+// perché la verifica della firma richiede il body grezzo (raw), non parsato.
+// ══════════════════════════════════════════════════════════════
+
+const CALL_RESULTS_FILE = path.join(process.cwd(), "call-results.json");
+
+function readCallResults(): any[] {
+  try {
+    if (!fs.existsSync(CALL_RESULTS_FILE)) return [];
+    return JSON.parse(fs.readFileSync(CALL_RESULTS_FILE, "utf-8"));
+  } catch { return []; }
+}
+
+function writeCallResults(results: any[]) {
+  try {
+    fs.writeFileSync(CALL_RESULTS_FILE, JSON.stringify(results.slice(0, 5000), null, 2));
+  } catch (err) { console.error("Error writing call-results.json", err); }
+}
+
+function verifyWildixSignature(rawBody: string, signature: string | undefined): boolean {
+  if (!signature) return false;
+  const secret = process.env.WILDIX_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error("WILDIX_WEBHOOK_SECRET non configurato!");
+    return false;
+  }
+  const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  try {
+    const expectedBuf = Buffer.from(expected, "utf-8");
+    const signatureBuf = Buffer.from(signature, "utf-8");
+    if (expectedBuf.length !== signatureBuf.length) return false;
+    return crypto.timingSafeEqual(expectedBuf, signatureBuf);
+  } catch {
+    return false;
+  }
+}
+
+app.post(
+  "/api/wildix-webhook",
+  express.raw({ type: "application/json" }), // body grezzo, necessario per la firma
+  (req, res) => {
+    const rawBody = req.body.toString("utf-8");
+    const signature = req.headers["x-signature"] as string | undefined;
+
+    if (!verifyWildixSignature(rawBody, signature)) {
+      console.warn("Wildix webhook: firma non valida, richiesta rifiutata");
+      return res.status(401).json({ ok: false, error: "Invalid signature" });
+    }
+
+    let event: any;
+    try {
+      event = JSON.parse(rawBody);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Invalid JSON" });
+    }
+
+    const results = readCallResults();
+
+    if (event.type === "call:completed") {
+      const flow = event.data?.flows?.[0] || {};
+      const numero = flow.callee?.phone || event.data?.destination || null;
+      const risposto = (flow.talkTime || 0) > 0;
+
+      results.unshift({
+        callId: event.id,
+        numero,
+        risposto,
+        durata: flow.talkTime || 0,
+        timestamp: new Date(event.time).toISOString(),
+        trascrizione: null,
+      });
+      writeCallResults(results);
+    }
+
+    if (event.type === "call:transcription:completed") {
+      const callId = event.id || event.data?.id;
+      const idx = results.findIndex((r) => r.callId === callId);
+      const trascrizione = event.data?.transcription || event.data?.summary || null;
+
+      if (idx !== -1) {
+        results[idx].trascrizione = trascrizione;
+      } else {
+        // trascrizione arrivata prima del call:completed (raro ma possibile)
+        results.unshift({
+          callId,
+          numero: null,
+          risposto: null,
+          durata: null,
+          timestamp: new Date().toISOString(),
+          trascrizione,
+        });
+      }
+      writeCallResults(results);
+    }
+
+    res.sendStatus(200);
+  }
+);
+
+app.get("/api/call-results", (_req, res) => {
+  res.json({ ok: true, results: readCallResults() });
+});
+
+// ══════════════════════════════════════════════════════════════
+// Da qui in poi: parsing JSON standard per tutte le altre rotte
+// ══════════════════════════════════════════════════════════════
 app.use(express.json());
 
 const USERS_FILE = path.join(process.cwd(), "users.json");
