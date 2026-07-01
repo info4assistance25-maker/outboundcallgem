@@ -180,7 +180,10 @@ app.post(
 
       if (event.type === "call:completed") {
         const flow = event.data?.flows?.[0] || {};
-        const numero = normalizePhone(flow.callee?.phone || event.data?.destination || null);
+        // remotePhone è il vero numero esterno per chiamate outbound reali;
+        // callee.phone/destination possono essere un'estensione interna
+        // (es. nei test diretti su un interno del voicebot).
+        const numero = normalizePhone(flow.remotePhone || flow.callee?.phone || event.data?.destination || null);
         const risposto = (flow.talkTime || 0) > 0;
         const nome = numero ? contactNames[numero] || null : null;
 
@@ -197,7 +200,7 @@ app.post(
 
       if (event.type === "call:transcription:completed") {
         const callId = event.id || event.data?.call?.id;
-        const numero = normalizePhone(event.data?.call?.destination || null);
+        const numero = normalizePhone(event.data?.call?.remotePhone || event.data?.call?.destination || null);
 
         // La trascrizione arriva come array di "chunks" (battute per parlante),
         // non come singolo campo transcription/summary.
@@ -219,7 +222,7 @@ app.post(
 
       if (event.type === "call:summary:completed") {
         const callId = event.id || event.data?.call?.id;
-        const numero = normalizePhone(event.data?.call?.destination || null);
+        const numero = normalizePhone(event.data?.call?.remotePhone || event.data?.call?.destination || null);
         const nome = numero ? contactNames[numero] || null : null;
         const summary = event.data?.summary || {};
 
