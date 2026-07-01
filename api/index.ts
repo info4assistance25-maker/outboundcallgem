@@ -133,7 +133,7 @@ app.post(
         const flow = ev.data?.flows?.[0] || {};
         return flow.callee?.userDevice === "VOICEBOT" || flow.caller?.userDevice === "VOICEBOT";
       }
-      if (ev.type === "call:transcription:completed") {
+      if (ev.type === "call:transcription:completed" || ev.type === "call:summary:completed") {
         const call = ev.data?.call || {};
         return call.callee?.userDevice === "VOICEBOT" || call.caller?.userDevice === "VOICEBOT";
       }
