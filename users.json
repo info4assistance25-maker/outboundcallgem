@@ -39,15 +39,15 @@
     "username": "miranda",
     "password": "Torino.1",
     "nome": "Miranda",
-    "canSchedule": true
+    "canSchedule": true,
+    "role": "Admin",
+    "isAdmin": true
   },
   {
     "username": "giovanni",
     "password": "Torino.1",
     "nome": "Giovanni",
-    "canSchedule": true,
-    "role": "Admin",
-    "isAdmin": true
+    "canSchedule": true
   },
   {
     "username": "giulia",
