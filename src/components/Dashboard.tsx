@@ -12,8 +12,9 @@ import { AdminVoicebots } from './AdminVoicebots';
 import { SupportSection } from './SupportSection';
 import { StatsDashboard } from './StatsDashboard';
 import { ProfileSection } from './ProfileSection';
+import { CallResultsSection } from './CallResultsSection';
 
-type Tab = 'campaign' | 'appointments' | 'lists' | 'history' | 'profile' | 'support' | 'stats' | 'users' | 'voicebots';
+type Tab = 'campaign' | 'appointments' | 'lists' | 'history' | 'callresults' | 'profile' | 'support' | 'stats' | 'users' | 'voicebots';
 
 interface NavItem {
   id: Tab;
@@ -38,6 +39,7 @@ const NAV_GROUPS = [
       { id: 'appointments' as Tab, label: 'Conferma Appuntamenti', icon: CalendarCheck, viewerHidden: true },
       { id: 'lists' as Tab, label: 'Liste Salvate', icon: List, viewerHidden: true },
       { id: 'history' as Tab, label: 'Storico Chiamate', icon: Clock },
+      { id: 'callresults' as Tab, label: 'Esiti Voicebot', icon: Phone },
     ]
   },
   {
@@ -68,6 +70,7 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   appointments: { title: 'Conferma Appuntamenti', subtitle: 'Visualizza, importa e gestisci gli appuntamenti programmati per le campagne di richiamata.' },
   lists: { title: 'Liste Salvate', subtitle: 'Salva, gestisci o riutilizza le tue liste contatti precedentemente caricate.' },
   history: { title: 'Storico Chiamate', subtitle: 'Consulta lo storico delle campagne effettuate e scarica i report associati.' },
+  callresults: { title: 'Esiti Voicebot', subtitle: 'Esito, trascrizione e riassunto AI di ogni chiamata gestita dal voicebot.' },
   profile: { title: 'Il Mio Profilo', subtitle: 'Gestisci le tue informazioni di contatto e le impostazioni del tuo account.' },
   support: { title: 'Assistenza', subtitle: 'Invia una richiesta direttamente al nostro team tecnico o amministrativo.' },
   stats: { title: 'Statistiche', subtitle: 'Panoramica delle campagne, chiamate per operatore e log accessi.' },
@@ -308,6 +311,10 @@ export function Dashboard() {
             <div className="max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-300">
               <LaunchSidebar mode="history" />
             </div>
+          )}
+
+          {activeTab === 'callresults' && (
+            <CallResultsSection />
           )}
 
           {activeTab === 'profile' && (
