@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
 import { GemLogo } from './Icons';
-import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck, Check } from 'lucide-react';
+import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck, Check, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Step1Upload, Step2Preview, Step3Settings } from './CampaignSteps';
 import { AppointmentPage } from './AppuntamentiSection';
@@ -13,8 +13,9 @@ import { SupportSection } from './SupportSection';
 import { StatsDashboard } from './StatsDashboard';
 import { ProfileSection } from './ProfileSection';
 import { CallResultsSection } from './CallResultsSection';
+import { FollowUpsSection } from './FollowUpsSection';
 
-type Tab = 'campaign' | 'appointments' | 'lists' | 'history' | 'callresults' | 'profile' | 'support' | 'stats' | 'users' | 'voicebots';
+type Tab = 'campaign' | 'appointments' | 'lists' | 'history' | 'callresults' | 'followups' | 'profile' | 'support' | 'stats' | 'users' | 'voicebots';
 
 interface NavItem {
   id: Tab;
@@ -40,6 +41,7 @@ const NAV_GROUPS = [
       { id: 'lists' as Tab, label: 'Liste Salvate', icon: List, viewerHidden: true },
       { id: 'history' as Tab, label: 'Storico Chiamate', icon: Clock },
       { id: 'callresults' as Tab, label: 'Esiti Voicebot', icon: Phone },
+      { id: 'followups' as Tab, label: 'Da Gestire', icon: AlertTriangle },
     ]
   },
   {
@@ -71,6 +73,7 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   lists: { title: 'Liste Salvate', subtitle: 'Salva, gestisci o riutilizza le tue liste contatti precedentemente caricate.' },
   history: { title: 'Storico Chiamate', subtitle: 'Consulta lo storico delle campagne effettuate e scarica i report associati.' },
   callresults: { title: 'Esiti Voicebot', subtitle: 'Esito, trascrizione e riassunto AI di ogni chiamata gestita dal voicebot.' },
+  followups: { title: 'Da Gestire', subtitle: 'Chiamate che richiedono un intervento umano: rifiuti, disdette, trasferimenti.' },
   profile: { title: 'Il Mio Profilo', subtitle: 'Gestisci le tue informazioni di contatto e le impostazioni del tuo account.' },
   support: { title: 'Assistenza', subtitle: 'Invia una richiesta direttamente al nostro team tecnico o amministrativo.' },
   stats: { title: 'Statistiche', subtitle: 'Panoramica delle campagne, chiamate per operatore e log accessi.' },
@@ -315,6 +318,10 @@ export function Dashboard() {
 
           {activeTab === 'callresults' && (
             <CallResultsSection />
+          )}
+
+          {activeTab === 'followups' && (
+            <FollowUpsSection />
           )}
 
           {activeTab === 'profile' && (
