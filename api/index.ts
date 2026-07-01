@@ -126,6 +126,26 @@ app.post(
       return res.status(400).json({ ok: false, error: "Invalid JSON" });
     }
 
+    // ── FILTRO: interessano solo le chiamate gestite da un Voicebot ──
+    // (campagne outbound / conferme appuntamento), non tutte le chiamate del PBX.
+    function isVoicebotCall(ev: any): boolean {
+      if (ev.type === "call:completed") {
+        const flow = ev.data?.flows?.[0] || {};
+        return flow.callee?.userDevice === "VOICEBOT" || flow.caller?.userDevice === "VOICEBOT";
+      }
+      if (ev.type === "call:transcription:completed") {
+        const call = ev.data?.call || {};
+        return call.callee?.userDevice === "VOICEBOT" || call.caller?.userDevice === "VOICEBOT";
+      }
+      return false;
+    }
+
+    if (!isVoicebotCall(event)) {
+      // Non è una chiamata del voicebot: la ignoriamo, ma rispondiamo comunque 200
+      // per evitare che Wildix la re-invii inutilmente come se fosse fallita.
+      return res.sendStatus(200);
+    }
+
     // NOTA: su Vercel il codice non è garantito proseguire dopo l'invio
     // della risposta (niente "fire and forget"), quindi attendiamo il
     // completamento della scrittura su GitHub PRIMA di rispondere 200.
