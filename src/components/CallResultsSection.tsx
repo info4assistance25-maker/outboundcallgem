@@ -144,18 +144,60 @@ function ResultCard({ r }: { r: CallResult }) {
   );
 }
 
+interface Stats {
+  totale: number;
+  risposte: number;
+  non_risposte: number;
+  durata_media_ms: number | null;
+}
+
+function StatsBar() {
+  const [stats, setStats] = useState<Stats | null>(null);
+
+  useEffect(() => {
+    fetch('/api/voicebot-stats')
+      .then(r => r.json())
+      .then(d => setStats(d.totali || null))
+      .catch(() => setStats(null));
+  }, []);
+
+  if (!stats) return null;
+
+  const items = [
+    { label: 'Chiamate totali', value: stats.totale },
+    { label: 'Risposte', value: stats.risposte },
+    { label: 'Non risposte', value: stats.non_risposte },
+    { label: 'Durata media', value: formatDurata(stats.durata_media_ms) },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      {items.map(it => (
+        <div key={it.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
+          <div className="text-lg font-bold text-slate-900 dark:text-white">{it.value}</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400">{it.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function CallResultsSection() {
   const [results, setResults] = useState<CallResult[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 20;
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [esitoFiltro, setEsitoFiltro] = useState<Esito | 'tutti'>('tutti');
 
-  const load = async () => {
+  const load = async (p = page) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/call-results');
+      const res = await fetch(`/api/call-results?limit=${PAGE_SIZE}&offset=${p * PAGE_SIZE}`);
       const data = await res.json();
       setResults(data.results || []);
+      setTotal(data.total || 0);
     } catch {
       setResults([]);
     } finally {
@@ -197,6 +239,7 @@ export function CallResultsSection() {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 max-w-3xl">
+      <StatsBar />
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -229,7 +272,7 @@ export function CallResultsSection() {
         </button>
 
         <button
-          onClick={load}
+          onClick={() => load()}
           className="flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-white shrink-0"
         >
           <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} /> Aggiorna
@@ -237,7 +280,7 @@ export function CallResultsSection() {
       </div>
 
       <div className="text-xs text-slate-400 mb-3">
-        {filtered.length} di {results.length} chiamate mostrate
+        {filtered.length} di {results.length} chiamate in questa pagina · {total} totali
       </div>
 
       {loading && results.length === 0 && (
@@ -255,6 +298,28 @@ export function CallResultsSection() {
       <div className="space-y-3">
         {filtered.map(r => <ResultCard key={r.callId} r={r} />)}
       </div>
+
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-center gap-3 mt-6">
+          <button
+            onClick={() => { const p = Math.max(0, page - 1); setPage(p); load(p); }}
+            disabled={page === 0}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 disabled:opacity-30 text-slate-600 dark:text-slate-300"
+          >
+            ← Precedente
+          </button>
+          <span className="text-xs text-slate-400">
+            Pagina {page + 1} di {Math.ceil(total / PAGE_SIZE)}
+          </span>
+          <button
+            onClick={() => { const p = page + 1; setPage(p); load(p); }}
+            disabled={(page + 1) * PAGE_SIZE >= total}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 disabled:opacity-30 text-slate-600 dark:text-slate-300"
+          >
+            Successiva →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
