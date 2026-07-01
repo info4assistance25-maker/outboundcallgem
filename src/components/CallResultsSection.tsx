@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { PhoneCall, CheckCircle2, XCircle, ChevronDown, RefreshCw, Clock } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { PhoneCall, CheckCircle2, XCircle, ChevronDown, RefreshCw, Clock, Search, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
 
 interface CallResult {
   callId: string;
   numero: string | null;
+  nome?: string | null;
   risposto: boolean | null;
   durata: number | null;
   timestamp: string;
@@ -36,6 +38,22 @@ function isConfermato(r: CallResult): boolean {
   return decisioni.some(d => /confer/i.test(d)) && !isRifiutato(r);
 }
 
+type Esito = 'confermato' | 'rifiutato' | 'non_risposto' | 'altro';
+
+function getEsito(r: CallResult): Esito {
+  if (r.risposto === false) return 'non_risposto';
+  if (isRifiutato(r)) return 'rifiutato';
+  if (isConfermato(r)) return 'confermato';
+  return 'altro';
+}
+
+const ESITO_LABEL: Record<Esito, string> = {
+  confermato: 'Confermato',
+  rifiutato: 'Rifiutato',
+  non_risposto: 'Non risposto',
+  altro: 'Altro',
+};
+
 function ResultCard({ r }: { r: CallResult }) {
   const [open, setOpen] = useState(false);
   const rifiutato = isRifiutato(r);
@@ -54,7 +72,11 @@ function ResultCard({ r }: { r: CallResult }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-sm text-slate-900 dark:text-white">
-              {r.numero ? `${r.numero} — ${r.riassunto?.titolo || r.callId}` : (r.riassunto?.titolo || r.callId)}
+              {r.nome
+                ? `${r.nome} — ${r.numero || ''}`
+                : r.numero
+                  ? `${r.numero} — ${r.riassunto?.titolo || r.callId}`
+                  : (r.riassunto?.titolo || r.callId)}
             </span>
 
             {r.risposto === false && (
@@ -125,6 +147,8 @@ function ResultCard({ r }: { r: CallResult }) {
 export function CallResultsSection() {
   const [results, setResults] = useState<CallResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [esitoFiltro, setEsitoFiltro] = useState<Esito | 'tutti'>('tutti');
 
   const load = async () => {
     setLoading(true);
@@ -141,18 +165,79 @@ export function CallResultsSection() {
 
   useEffect(() => { load(); }, []);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return results.filter(r => {
+      if (esitoFiltro !== 'tutti' && getEsito(r) !== esitoFiltro) return false;
+      if (!q) return true;
+      return (
+        r.nome?.toLowerCase().includes(q) ||
+        r.numero?.toLowerCase().includes(q) ||
+        r.riassunto?.titolo?.toLowerCase().includes(q) ||
+        r.riassunto?.testo?.toLowerCase().includes(q)
+      );
+    });
+  }, [results, search, esitoFiltro]);
+
+  const exportExcel = () => {
+    const rows = filtered.map(r => ({
+      Nome: r.nome || '',
+      Numero: r.numero || '',
+      Esito: ESITO_LABEL[getEsito(r)],
+      Durata: formatDurata(r.durata),
+      Data: new Date(r.timestamp).toLocaleString('it-IT'),
+      Riassunto: r.riassunto?.testo || '',
+      Decisioni: (r.riassunto?.decisioni || []).join('; '),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Esiti Voicebot');
+    XLSX.writeFile(wb, `esiti-voicebot-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 max-w-3xl">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm text-slate-500 dark:text-slate-400">
-          {results.length} chiamat{results.length === 1 ? 'a' : 'e'} registrat{results.length === 1 ? 'a' : 'e'}
-        </span>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca per nome, numero o contenuto..."
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </div>
+
+        <select
+          value={esitoFiltro}
+          onChange={e => setEsitoFiltro(e.target.value as Esito | 'tutti')}
+          className="text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          <option value="tutti">Tutti gli esiti</option>
+          <option value="confermato">Confermato</option>
+          <option value="rifiutato">Rifiutato</option>
+          <option value="non_risposto">Non risposto</option>
+          <option value="altro">Altro</option>
+        </select>
+
+        <button
+          onClick={exportExcel}
+          disabled={filtered.length === 0}
+          className="flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white shrink-0"
+        >
+          <Download className="w-3.5 h-3.5" /> Esporta
+        </button>
+
         <button
           onClick={load}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-white"
+          className="flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-white shrink-0"
         >
           <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} /> Aggiorna
         </button>
+      </div>
+
+      <div className="text-xs text-slate-400 mb-3">
+        {filtered.length} di {results.length} chiamate mostrate
       </div>
 
       {loading && results.length === 0 && (
@@ -163,8 +248,12 @@ export function CallResultsSection() {
         <p className="text-sm text-slate-400">Nessuna chiamata registrata finora.</p>
       )}
 
+      {!loading && results.length > 0 && filtered.length === 0 && (
+        <p className="text-sm text-slate-400">Nessun risultato per questa ricerca/filtro.</p>
+      )}
+
       <div className="space-y-3">
-        {results.map(r => <ResultCard key={r.callId} r={r} />)}
+        {filtered.map(r => <ResultCard key={r.callId} r={r} />)}
       </div>
     </div>
   );
