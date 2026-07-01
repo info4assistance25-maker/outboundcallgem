@@ -54,7 +54,7 @@ function ResultCard({ r }: { r: CallResult }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-sm text-slate-900 dark:text-white">
-              {r.riassunto?.titolo || r.numero || r.callId}
+              {r.numero ? `${r.numero} — ${r.riassunto?.titolo || r.callId}` : (r.riassunto?.titolo || r.callId)}
             </span>
 
             {r.risposto === false && (
