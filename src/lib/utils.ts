@@ -9,12 +9,26 @@ export function normalizePhoneNumber(num: string): string {
   if (!num) return num;
   // Rimuovi spazi, trattini, punti, parentesi
   let n = String(num).trim().replace(/[\s\-\.()\/]/g, '');
-  // Converti 0039 → +39
-  if (n.startsWith('0039')) n = '+' + n.slice(2);
-  // Numero italiano scritto con prefisso 39 ma senza +, es. 393331234567
-  if (/^39[03]\d{9}$/.test(n)) n = '+' + n;
-  // Aggiungi +39 se numero italiano (10 cifre, inizia con 0 o 3, senza alcun prefisso)
-  if (/^[03]\d{9}$/.test(n)) n = '+39' + n;
+
+  // Caso 1: già in formato internazionale con +39 → lascia stare
+  if (n.startsWith('+39')) return n;
+
+  // Caso 2: prefisso 0039 → sostituisci con +39
+  if (n.startsWith('0039')) return '+' + n.slice(2);
+
+  // Caso 3: prefisso 39 scritto senza + (es. 393331234567) → aggiungi solo il +
+  // Riconosciuto quando dopo il 39 il numero prosegue con 0 o 3 (avvio tipico
+  // di un numero italiano: mobile 3xx o fisso 0xx) ed è abbastanza lungo da
+  // essere plausibilmente un +39 e non, ad esempio, un numero locale che
+  // inizia semplicemente per "39".
+  if (/^39[03]\d{7,10}$/.test(n)) return '+' + n;
+
+  // Caso 4: qualsiasi altro prefisso internazionale (+ o 00 diverso da Italia) → lascia stare
+  if (n.startsWith('+') || n.startsWith('00')) return n;
+
+  // Caso 5: nessun prefisso — numero italiano "nudo" (mobile 3xx o fisso 0xx) → aggiungi +39
+  if (/^[03]\d{6,10}$/.test(n)) return '+39' + n;
+
   return n;
 }
 
