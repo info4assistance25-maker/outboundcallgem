@@ -393,7 +393,23 @@ const GITHUB_FILE_PATH = "users.json";
 const VOICEBOTS_FILE_PATH = "voicebots.json";
 const VOICEBOTS_LOCAL = path.join(process.cwd(), "voicebots.json");
 
-function readVoicebots() {
+async function readVoicebots() {
+  const token = process.env.GITHUB_TOKEN;
+  if (token) {
+    try {
+      const getRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_REPO}/contents/${VOICEBOTS_FILE_PATH}`,
+        { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
+      );
+      if (getRes.ok) {
+        const fileData = await getRes.json() as any;
+        const content = Buffer.from(fileData.content, "base64").toString("utf-8");
+        return JSON.parse(content);
+      }
+      console.error("GitHub GET voicebots error:", getRes.status);
+    } catch (err) { console.error("Error reading voicebots from GitHub:", err); }
+  }
+  // Fallback: file locale (ambiente senza GITHUB_TOKEN, es. sviluppo locale)
   try {
     if (!fs.existsSync(VOICEBOTS_LOCAL)) return [];
     return JSON.parse(fs.readFileSync(VOICEBOTS_LOCAL, "utf-8"));
@@ -413,7 +429,7 @@ async function writeVoicebots(bots: any[]) {
     );
     const sha = getRes.ok ? (await getRes.json() as any).sha : undefined;
     const content = Buffer.from(JSON.stringify(bots, null, 2)).toString("base64");
-    await fetch(
+    const putRes = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/contents/${VOICEBOTS_FILE_PATH}`,
       {
         method: "PUT",
@@ -421,7 +437,12 @@ async function writeVoicebots(bots: any[]) {
         body: JSON.stringify({ message: "chore: update voicebots", content, ...(sha ? { sha } : {}) })
       }
     );
-  } catch (err) { console.error("Error writing voicebots to GitHub:", err); }
+    if (!putRes.ok) {
+      const errText = await putRes.text();
+      console.error("GitHub PUT voicebots error:", putRes.status, errText);
+      throw new Error("GitHub write failed");
+    }
+  } catch (err) { console.error("Error writing voicebots to GitHub:", err); throw err; }
 }
 
 function readUsers() {
@@ -660,36 +681,45 @@ app.put("/api/me", async (req, res) => {
 });
 
 // ── VOICEBOT ENDPOINTS ──
-app.get("/api/voicebots", (_req, res) => {
-  res.json({ ok: true, voicebots: readVoicebots() });
+app.get("/api/voicebots", async (_req, res) => {
+  res.json({ ok: true, voicebots: await readVoicebots() });
 });
 
 app.post("/api/voicebots", async (req, res) => {
   const { nome, exten, context, descrizione } = req.body;
   if (!nome || !exten || !context) return res.status(400).json({ ok: false, error: "Nome, interno e contesto sono obbligatori" });
-  const bots = readVoicebots();
+  const bots = await readVoicebots();
   const id = `vb${Date.now()}`;
   bots.push({ id, nome, exten: parseInt(exten), context, descrizione: descrizione || "", attivo: true });
-  await writeVoicebots(bots);
-  res.json({ ok: true, id });
+  try {
+    await writeVoicebots(bots);
+    res.json({ ok: true, id });
+  } catch {
+    res.status(500).json({ ok: false, error: "Errore salvataggio su GitHub" });
+  }
 });
 
 app.put("/api/voicebots/:id", async (req, res) => {
-  const bots = readVoicebots();
+  const bots = await readVoicebots();
   const idx = bots.findIndex((b: any) => b.id === req.params.id);
   if (idx === -1) return res.status(404).json({ ok: false, error: "Voicebot non trovato" });
   bots[idx] = { ...bots[idx], ...req.body, id: req.params.id };
-  // Salva localmente subito e rispondi, GitHub in background
-  try { fs.writeFileSync(VOICEBOTS_LOCAL, JSON.stringify(bots, null, 2)); } catch {}
-  res.json({ ok: true });
-  writeVoicebots(bots).catch(() => {});
+  try {
+    await writeVoicebots(bots);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ ok: false, error: "Errore salvataggio su GitHub" });
+  }
 });
 
 app.delete("/api/voicebots/:id", async (req, res) => {
-  const bots = readVoicebots().filter((b: any) => b.id !== req.params.id);
-  try { fs.writeFileSync(VOICEBOTS_LOCAL, JSON.stringify(bots, null, 2)); } catch {}
-  res.json({ ok: true });
-  writeVoicebots(bots).catch(() => {});
+  const bots = (await readVoicebots()).filter((b: any) => b.id !== req.params.id);
+  try {
+    await writeVoicebots(bots);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ ok: false, error: "Errore eliminazione su GitHub" });
+  }
 });
 
 // ── ACCESS LOGS ──
