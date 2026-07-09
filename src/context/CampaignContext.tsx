@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { isValidPhoneNumber } from '../lib/utils';
+import { isValidPhoneNumber, normalizePhoneNumber } from '../lib/utils';
 import * as XLSX from 'xlsx';
 
 export interface Voicebot {
@@ -237,12 +237,12 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const evaluateContacts = (raw: Contact[]) => {
     const seen = new Set();
     return raw.map(c => {
-      const numStr = String(c.numero || '');
+      const numStr = normalizePhoneNumber(String(c.numero || ''));
       const k = numStr.replace(/\s/g, '');
       const inv = !isValidPhoneNumber(numStr);
       const dup = Boolean(k && seen.has(k));
       if (!dup && k) seen.add(k);
-      return { ...c, inv, dup };
+      return { ...c, numero: numStr, inv, dup };
     });
   };
 
