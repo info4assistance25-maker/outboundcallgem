@@ -67,28 +67,28 @@ export function AdminVoicebots() {
     setBots(prev => prev.map(b => b.id === id ? updated : b));
     setEditId(null);
     notify('ok', 'Salvato');
-    loadVoicebots();
     fetch(`/api/voicebots/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updated)
     }).then(r => r.json()).then(data => {
       if (!data.ok) { notify('err', data.error || 'Errore salvataggio'); load(); }
-    }).catch(() => { notify('err', 'Errore di rete'); load(); });
+      loadVoicebots();
+    }).catch(() => { notify('err', 'Errore di rete'); load(); loadVoicebots(); });
   };
 
   const handleDelete = async (id: string) => {
     setBots(prev => prev.filter(b => b.id !== id));
     setConfirmDelete(null);
     notify('ok', 'Eliminato');
-    loadVoicebots();
-    fetch(`/api/voicebots/${id}`, { method: 'DELETE' }).catch(() => { notify('err', 'Errore eliminazione'); load(); });
+    fetch(`/api/voicebots/${id}`, { method: 'DELETE' })
+      .then(() => loadVoicebots())
+      .catch(() => { notify('err', 'Errore eliminazione'); load(); loadVoicebots(); });
   };
 
   const handleToggle = async (bot: Voicebot) => {
     const nuovoStato = !bot.attivo;
     setBots(prev => prev.map(b => b.id === bot.id ? { ...b, attivo: nuovoStato } : b));
-    loadVoicebots();
     try {
       const res = await fetch(`/api/voicebots/${bot.id}`, {
         method: 'PUT',
@@ -105,6 +105,8 @@ export function AdminVoicebots() {
     } catch {
       setBots(prev => prev.map(b => b.id === bot.id ? { ...b, attivo: bot.attivo } : b));
       notify('err', 'Errore di rete');
+    } finally {
+      loadVoicebots();
     }
   };
 
