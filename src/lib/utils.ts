@@ -11,7 +11,9 @@ export function normalizePhoneNumber(num: string): string {
   let n = String(num).trim().replace(/[\s\-\.()\/]/g, '');
   // Converti 0039 → +39
   if (n.startsWith('0039')) n = '+' + n.slice(2);
-  // Aggiungi +39 se numero italiano (10 cifre, inizia con 0 o 3)
+  // Numero italiano scritto con prefisso 39 ma senza +, es. 393331234567
+  if (/^39[03]\d{9}$/.test(n)) n = '+' + n;
+  // Aggiungi +39 se numero italiano (10 cifre, inizia con 0 o 3, senza alcun prefisso)
   if (/^[03]\d{9}$/.test(n)) n = '+39' + n;
   return n;
 }
