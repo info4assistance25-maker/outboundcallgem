@@ -30,5 +30,13 @@
     "context": "outbound-voicebot",
     "descrizione": "",
     "attivo": false
+  },
+  {
+    "id": "vb1783696477452",
+    "nome": "ROME BUSINESS SCHOOL",
+    "exten": 9001,
+    "context": "outbound-voicebot",
+    "descrizione": "demo",
+    "attivo": true
   }
 ]
