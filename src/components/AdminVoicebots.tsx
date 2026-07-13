@@ -63,7 +63,10 @@ export function AdminVoicebots() {
   };
 
   const handleSaveEdit = async (id: string) => {
-    const updated = { ...bots.find(b => b.id === id)!, ...form, exten: parseInt(form.exten), id };
+    if (!form.nome || !form.exten || !form.context) return notify('err', 'Nome, interno e contesto sono obbligatori');
+    const exten = parseInt(form.exten);
+    if (isNaN(exten)) return notify('err', 'Interno non valido');
+    const updated = { ...bots.find(b => b.id === id)!, ...form, exten, id };
     setBots(prev => prev.map(b => b.id === id ? updated : b));
     setEditId(null);
     notify('ok', 'Salvato');
