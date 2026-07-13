@@ -32,7 +32,7 @@ interface NavGroup {
   viewerOnly?: boolean;
 }
 
-const NAV_GROUPS = [
+const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Campagne',
     items: [
