@@ -24,7 +24,18 @@ const app = express();
 
 import { neon } from "@neondatabase/serverless";
 
-const sql = neon(process.env.DATABASE_URL!);
+// Inizializzazione "difensiva": se DATABASE_URL manca o non è valida, neon()
+// lancia subito un'eccezione. Senza il try/catch questo farebbe fallire il
+// caricamento dell'intero modulo, portando giù anche le rotte che non
+// dipendono da Postgres (login, utenti, voicebot su GitHub, ecc.).
+// Le funzioni che usano sql() gestiscono già singolarmente gli errori delle
+// query con try/catch, quindi qui basta evitare il crash in fase di boot.
+let sql: ReturnType<typeof neon> | null = null;
+try {
+  sql = neon(process.env.DATABASE_URL!);
+} catch (err) {
+  console.error("DATABASE_URL non configurata o non valida — funzionalità Postgres (esiti chiamate, follow-up, statistiche) disabilitate:", err);
+}
 
 async function readCallResults(limit = 50, offset = 0): Promise<{ rows: any[]; total: number }> {
   try {
