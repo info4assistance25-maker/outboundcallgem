@@ -401,8 +401,8 @@ export function Step3Settings() {
               )}
             >
               {!canSchedule && (
-                <div className="absolute top-3 right-3 text-red-500">
-                  <AlertTriangle className="w-5 h-5" title="Schedulazione disabilitata per questo utente" />
+                <div className="absolute top-3 right-3 text-red-500" title="Schedulazione disabilitata per questo utente">
+                  <AlertTriangle className="w-5 h-5" />
                 </div>
               )}
               <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors", scheduleMode === 'later' ? "bg-brand-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500")}>
