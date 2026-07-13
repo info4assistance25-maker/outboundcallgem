@@ -105,7 +105,7 @@ interface CampaignContextType {
   setBusinessHoursConfig: (c: { days: number[]; startHour: number; endHour: number }) => void;
 
   historyFilter: { operator: string; dateFrom: string; dateTo: string; search: string };
-  setHistoryFilter: (f: { operator: string; dateFrom: string; dateTo: string }) => void;
+  setHistoryFilter: React.Dispatch<React.SetStateAction<{ operator: string; dateFrom: string; dateTo: string; search: string }>>;
   filteredHistory: HistoryItem[];
   exportHistoryToXLSX: () => void;
   
