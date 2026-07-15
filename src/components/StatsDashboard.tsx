@@ -1,34 +1,59 @@
 import React, { useEffect, useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Phone, TrendingUp, Users, Clock, Shield, CalendarDays, PhoneOff, BarChart2 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
+import { Phone, TrendingUp, Users, Clock, CalendarDays, PhoneOff, BarChart2, PhoneIncoming, Timer } from 'lucide-react';
 import { format, subDays, startOfDay, isToday } from 'date-fns';
-import { it } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 
-interface AccessLog { ts: string; username: string; nome: string; action: string; }
+interface VoicebotTotals {
+  totale: number;
+  risposte: number;
+  non_risposte: number;
+  durata_media_ms: number | null;
+}
+interface VoicebotDaily { giorno: string; totale: number; }
+
+function formatDurataMedia(ms: number | null) {
+  if (!ms) return '—';
+  const sec = Math.round(ms / 1000);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 export function StatsDashboard() {
-  const { history, user } = useCampaign();
-  const isAdmin = user?.isAdmin || user?.role === 'Admin';
-  const [logs, setLogs] = useState<AccessLog[]>([]);
-  const [logsLoading, setLogsLoading] = useState(false);
+  const { history } = useCampaign();
+  const [vbTotals, setVbTotals] = useState<VoicebotTotals | null>(null);
+  const [vbDaily, setVbDaily] = useState<VoicebotDaily[]>([]);
+  const [vbLoading, setVbLoading] = useState(false);
 
   useEffect(() => {
-    if (!isAdmin) return;
-    setLogsLoading(true);
-    fetch('/api/access-logs')
+    setVbLoading(true);
+    fetch('/api/voicebot-stats')
       .then(r => r.json())
       .then(d => {
-        // Ordina i log dal più recente al più vecchio prima di salvarli nello stato
-        const sortedLogs = (d.logs || []).sort(
-          (a: AccessLog, b: AccessLog) => new Date(b.ts).getTime() - new Date(a.ts).getTime()
-        );
-        setLogs(sortedLogs);
+        if (d.ok) {
+          setVbTotals(d.totali || null);
+          setVbDaily(d.perGiorno || []);
+        }
       })
-      .catch((err) => console.error("Errore caricamento log:", err))
-      .finally(() => setLogsLoading(false));
-  }, [isAdmin]);
+      .catch((err) => console.error("Errore caricamento statistiche voicebot:", err))
+      .finally(() => setVbLoading(false));
+  }, []);
+
+  // Tasso di risposta reale dal voicebot (DB), su tutte le chiamate gestite
+  const tassoRisposta = vbTotals && vbTotals.totale > 0
+    ? Math.round((vbTotals.risposte / vbTotals.totale) * 100)
+    : null;
+
+  // Trend voicebot ultimi 30 giorni, riempiendo i buchi con 0
+  const vbTrend30 = Array.from({ length: 30 }, (_, i) => {
+    const d = startOfDay(subDays(new Date(), 29 - i));
+    const key = format(d, 'yyyy-MM-dd');
+    const label = format(d, 'dd/MM');
+    const found = vbDaily.find(v => v.giorno?.startsWith(key));
+    return { label, totale: found?.totale || 0 };
+  });
 
   // Ultimi 7 giorni — chiamate per giorno
   const last7 = Array.from({ length: 7 }, (_, i) => {
@@ -75,6 +100,13 @@ export function StatsDashboard() {
     { label: 'Operatori Attivi', value: operators.length, icon: Users, color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-900/20' },
   ];
 
+  // KPI reali dal voicebot (database), indipendenti dallo storico locale delle campagne
+  const voicebotCards = [
+    { label: 'Tasso di Risposta', value: tassoRisposta !== null ? `${tassoRisposta}%` : '—', icon: PhoneIncoming, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20', sub: vbTotals ? `${vbTotals.risposte} / ${vbTotals.totale} chiamate` : undefined },
+    { label: 'Durata Media Chiamata', value: formatDurataMedia(vbTotals?.durata_media_ms ?? null), icon: Timer, color: 'text-brand-600', bg: 'bg-brand-50 dark:bg-brand-900/20', sub: 'minuti:secondi' },
+    { label: 'Non Risposte', value: vbTotals?.non_risposte ?? '—', icon: PhoneOff, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20' },
+  ];
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
 
@@ -90,6 +122,52 @@ export function StatsDashboard() {
             {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
           </div>
         ))}
+      </div>
+
+      {/* KPI Voicebot — dati reali dal database chiamate */}
+      <div>
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">Voicebot — Dati Reali</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {voicebotCards.map(({ label, value, icon: Icon, color, bg, sub }: any) => (
+            <div key={label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-soft">
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-3", bg)}>
+                <Icon className={cn("w-5 h-5", color)} />
+              </div>
+              <div className="text-2xl font-extrabold text-slate-900 dark:text-white font-display">{vbLoading ? '…' : value}</div>
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-1">{label}</div>
+              {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Trend voicebot ultimi 30 giorni — dati reali */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-soft">
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-5 uppercase tracking-wider">Chiamate Voicebot — ultimi 30 giorni</h3>
+        {vbLoading ? (
+          <div className="h-48 flex items-center justify-center text-slate-400 text-sm">Caricamento...</div>
+        ) : !vbTotals || vbTotals.totale === 0 ? (
+          <div className="h-48 flex flex-col items-center justify-center gap-3 text-slate-400">
+            <BarChart2 className="w-10 h-10 opacity-30" />
+            <span className="text-sm">Nessuna chiamata registrata</span>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={vbTrend30}>
+              <defs>
+                <linearGradient id="vbTrendFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.1)" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={4} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 12 }} labelStyle={{ color: '#94a3b8' }} itemStyle={{ color: '#e2e8f0' }} />
+              <Area type="monotone" dataKey="totale" stroke="#3b82f6" strokeWidth={2.5} fill="url(#vbTrendFill)" name="Chiamate" />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -184,50 +262,6 @@ export function StatsDashboard() {
         )}
       </div>
 
-      {/* Log accessi — solo admin */}
-      {isAdmin && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-soft">
-          <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 flex items-center gap-2">
-            <Shield className="w-4 h-4 text-slate-500" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Log Accessi</h3>
-          </div>
-          {logsLoading ? (
-            <div className="p-8 text-center text-sm text-slate-400">Caricamento log...</div>
-          ) : logs.length === 0 ? (
-            <div className="p-8 text-center text-sm text-slate-400 italic">Nessun accesso registrato</div>
-          ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-80 overflow-y-auto">
-              {logs.slice(0, 50).map((log, i) => (
-                <div key={i} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 uppercase">
-                      {log.nome?.charAt(0) || '?'}
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900 dark:text-white">{log.nome}</div>
-                      <div className="text-xs text-slate-500">@{log.username}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className={cn("text-xs font-bold px-2 py-0.5 rounded-full", log.action === 'login' ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400')}>
-                      {log.action === 'login' ? 'Accesso' : 'Uscita'}
-                    </div>
-                    <div className="text-xs text-slate-400 mt-1">
-                      {(() => {
-                        try {
-                          return format(new Date(log.ts), 'dd MMM HH:mm', { locale: it });
-                        } catch {
-                          return 'Data non valida';
-                        }
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -1,10 +1,31 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
 import { Play, AlertTriangle, Loader2, Trash2, DownloadCloud, Save, Phone, Clock, Filter, X, StickyNote, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
+
+function dayLabel(date: Date): string {
+  if (isToday(date)) return 'Oggi';
+  if (isYesterday(date)) return 'Ieri';
+  return format(date, 'EEEE d MMMM', { locale: it });
+}
+
+// Raggruppa lo storico per giorno, come un registro chiamate: { "Oggi": [...], "Ieri": [...], ... }
+function groupHistoryByDay<T extends { ts: string }>(items: T[]): { label: string; items: T[] }[] {
+  const groups: { label: string; items: T[] }[] = [];
+  for (const item of items) {
+    const label = dayLabel(new Date(item.ts));
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) {
+      last.items.push(item);
+    } else {
+      groups.push({ label, items: [item] });
+    }
+  }
+  return groups;
+}
 
 export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 'all' }) {
   const { 
@@ -405,37 +426,55 @@ export function LaunchSidebar({ mode = 'all' }: { mode?: 'launch' | 'history' | 
               )}
             </div>
           ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredHistory.map((h, i) => (
-                <div key={i} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2">
-                      {h.scheduledAt
-                        ? <span className="px-2 py-0.5 rounded-full bg-accent-50 dark:bg-accent-900/30 text-accent-600 dark:text-accent-400 text-[10px] font-bold uppercase tracking-wider">Pianificata</span>
-                        : <span className="px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold uppercase tracking-wider">Immediata</span>
-                      }
-                    </div>
-                    <div className="text-right">
-                      <span className="block font-display font-extrabold text-brand-600 dark:text-brand-400 text-lg leading-none">{h.count}</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">chiamate</span>
-                    </div>
+            <div className="max-h-[32rem] overflow-y-auto">
+              {groupHistoryByDay(filteredHistory).map((group, gi) => (
+                <div key={gi}>
+                  {/* Header giorno, sticky come nel registro chiamate del telefono */}
+                  <div className="sticky top-0 z-10 px-4 py-1.5 bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-sm text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider capitalize">
+                    {group.label}
                   </div>
-                  <div className="text-xs font-semibold text-slate-900 dark:text-white mb-0.5">
-                    {format(new Date(h.ts), 'dd MMM yyyy, HH:mm', { locale: it })}
-                  </div>
-                  {h.note && (
-                    <div className="text-xs text-slate-500 italic mt-1">"{h.note}"</div>
-                  )}
-                  <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                    <div className="text-xs font-medium text-slate-500">
-                      {h.opt}{h.chunkSize > 1 ? ` · ${h.chunkSize} simul.` : ''}
-                    </div>
-                    {h.contactsList && h.contactsList.length > 0 && (
-                      <button onClick={() => exportSingleHistory(h)}
-                        className="text-[10px] uppercase tracking-wider font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2 py-1 rounded transition-colors flex items-center gap-1 flex-shrink-0">
-                        <DownloadCloud className="w-3 h-3" /> Esporta
-                      </button>
-                    )}
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {group.items.map((h, i) => (
+                      <div key={i} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                        {/* Icona tipo campagna, come icone chiamata in/out */}
+                        <div className={cn(
+                          "w-9 h-9 rounded-full flex items-center justify-center shrink-0",
+                          h.scheduledAt ? "bg-accent-50 dark:bg-accent-900/30 text-accent-600 dark:text-accent-400" : "bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+                        )}>
+                          <Phone className="w-4 h-4" />
+                        </div>
+
+                        {/* Info principale */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                              {h.scheduledAt ? 'Campagna pianificata' : 'Campagna immediata'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-500 truncate">
+                            {h.opt}{h.chunkSize > 1 ? ` · ${h.chunkSize} simul.` : ''}
+                            {h.note && <span className="italic"> · "{h.note}"</span>}
+                          </div>
+                        </div>
+
+                        {/* Orario + numero chiamate, come il registro del telefono */}
+                        <div className="text-right shrink-0">
+                          <div className="text-sm font-bold text-slate-900 dark:text-white leading-none">
+                            {format(new Date(h.ts), 'HH:mm')}
+                          </div>
+                          <div className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 mt-1">
+                            {h.count} chiamate
+                          </div>
+                        </div>
+
+                        {h.contactsList && h.contactsList.length > 0 && (
+                          <button onClick={() => exportSingleHistory(h)} title="Esporta in Excel" aria-label="Esporta in Excel"
+                            className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-colors shrink-0">
+                            <DownloadCloud className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
