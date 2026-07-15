@@ -27,7 +27,7 @@
     "email": "sferreri@gemgroupsrls.it",
     "telefono": "+393202554975",
     "twoFactorSecret": "YS7P5PPPDXNQIOF36YLBWEUI33HJ6QQU",
-    "twoFactorEnabled": false
+    "twoFactorEnabled": true
   },
   {
     "username": "emiliano",
