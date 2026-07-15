@@ -15,7 +15,9 @@
     "password": "GemAdmin1!",
     "nome": "Admin",
     "isAdmin": true,
-    "canSchedule": true
+    "canSchedule": true,
+    "twoFactorRequired": true,
+    "twoFactorEnabled": false
   },
   {
     "username": "stefano",
