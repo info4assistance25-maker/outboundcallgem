@@ -663,16 +663,25 @@ app.post("/api/login", async (req, res) => {
   }
 
   // ── 2FA: se l'utente non ha ancora un segreto TOTP, lo generiamo ora e
-  // chiediamo di completare il setup scansionando il QR code. Se ce l'ha
-  // già ed è attivo, chiediamo semplicemente il codice a 6 cifre. ──
-  if (!user.twoFactorSecret || !user.twoFactorEnabled) {
-    const secret = generateTotpSecret();
-    users[idx] = { ...users[idx], twoFactorSecret: secret, twoFactorEnabled: false };
-    try {
-      await writeUsers(users);
-    } catch (err) {
-      console.error("Errore salvataggio segreto 2FA:", err);
-      return res.status(500).json({ ok: false, error: "Errore configurazione 2FA, riprova." });
+  // chiediamo di completare il setup scansionando il QR code. Se ha già un
+  // segreto ma non ha ancora completato la verifica (setup in sospeso),
+  // riusiamo LO STESSO segreto invece di generarne uno nuovo: altrimenti
+  // ogni login ripetuto prima di inserire il primo codice OTP (doppio
+  // click, refresh, retry di rete) invalida il QR appena scansionato,
+  // perché l'app Authenticator continuerebbe a calcolare codici sul
+  // segreto vecchio mentre il server ne aspetta uno nuovo — causa esatta
+  // del "codice sempre errato" segnalato dagli utenti. Se ce l'ha già ed
+  // è attivo, chiediamo semplicemente il codice a 6 cifre. ──
+  if (!user.twoFactorEnabled) {
+    const secret = user.twoFactorSecret || generateTotpSecret();
+    if (!user.twoFactorSecret) {
+      users[idx] = { ...users[idx], twoFactorSecret: secret, twoFactorEnabled: false };
+      try {
+        await writeUsers(users);
+      } catch (err) {
+        console.error("Errore salvataggio segreto 2FA:", err);
+        return res.status(500).json({ ok: false, error: "Errore configurazione 2FA, riprova." });
+      }
     }
     const otpauthUrl = generateTotpURI({ issuer: "GEM Outbound", label: user.username, secret });
     const qrUrl = await QRCode.toDataURL(otpauthUrl);
