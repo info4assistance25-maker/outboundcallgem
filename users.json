@@ -31,7 +31,7 @@
   },
   {
     "username": "emiliano",
-    "password": "Torino.1",
+    "password": "$2a$12$XTjmKTyi5VPQZ9FdUJypyuPRbM0EKAv7nudGxSCQOvRuMLbetdRSe",
     "nome": "Emiliano",
     "canSchedule": true,
     "role": "Admin",
