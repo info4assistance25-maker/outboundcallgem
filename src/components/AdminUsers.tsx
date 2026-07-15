@@ -309,7 +309,7 @@ export function AdminUsers() {
                               ? 'Clicca per DISATTIVARE il 2FA (l\'utente accederà con solo utente/password)'
                               : '2FA richiesto ma non ancora configurato dall\'utente — clicca per disattivarlo'
                         }
-                        className="flex items-center justify-center hover:opacity-70 transition-opacity"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       >
                         {u.twoFactorRequired === false ? (
                           <ShieldOff className="w-4 h-4 text-slate-300 dark:text-slate-600" />
