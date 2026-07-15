@@ -47,7 +47,9 @@
     "username": "giovanni",
     "password": "Torino.1",
     "nome": "Giovanni",
-    "canSchedule": true
+    "canSchedule": true,
+    "role": "Admin",
+    "isAdmin": true
   },
   {
     "username": "giulia",
