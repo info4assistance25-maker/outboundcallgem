@@ -172,6 +172,17 @@ async function checkPassword(plain: string, stored: string): Promise<boolean> {
   return plain === stored; // legacy in chiaro
 }
 
+// ── 2FA: nuovo default per tutti gli utenti è "disattivato" (off), tranne
+// per chi lo ha già configurato e attivato in passato prima che esistesse
+// il flag esplicito twoFactorRequired: in quel caso preserviamo la scelta
+// già fatta, invece di disattivarlo a sua insaputa. Se il flag è già stato
+// impostato esplicitamente (true o false, es. da un Admin o dall'utente
+// stesso tramite auto-attivazione), rispettiamo sempre quello.
+function isTwoFactorRequired(user: any): boolean {
+  if (typeof user.twoFactorRequired === "boolean") return user.twoFactorRequired;
+  return user.twoFactorEnabled === true;
+}
+
 function verifyWildixSignature(rawBody: string, signature: string | undefined): boolean {
   if (!signature) return false;
   const secret = process.env.WILDIX_WEBHOOK_SECRET;
@@ -665,7 +676,7 @@ app.post("/api/login", async (req, res) => {
   // ── 2FA: gli admin possono disattivarlo per singolo utente (vedi rotta
   // PUT /api/users/:username/2fa). Se disattivato, si accede subito con
   // solo utente+password, come prima dell'introduzione del 2FA. ──
-  if (user.twoFactorRequired === false) {
+  if (!isTwoFactorRequired(user)) {
     const role = user.role || (user.isAdmin ? "Admin" : "Editor");
     const isAdmin = user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === "Admin";
     const token = issueSessionToken({ username: user.username, isAdmin });
@@ -777,7 +788,7 @@ app.get("/api/users", requireAuth, requireAdmin, async (req, res) => {
     role: u.role || (u.isAdmin ? 'Admin' : 'Editor'),
     canSchedule: u.canSchedule === true,
     twoFactorEnabled: u.twoFactorEnabled === true,
-    twoFactorRequired: u.twoFactorRequired !== false, // default: richiesto
+    twoFactorRequired: isTwoFactorRequired(u),
   }));
   res.json(safeUsers);
 });
@@ -795,7 +806,7 @@ app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
   }
 
   const hashed = await bcrypt.hash(password, 12);
-  users.push({ username, password: hashed, nome, role, isAdmin: role === 'Admin', canSchedule: canSchedule === true });
+  users.push({ username, password: hashed, nome, role, isAdmin: role === 'Admin', canSchedule: canSchedule === true, twoFactorRequired: false, twoFactorEnabled: false });
   await writeUsers(users);
 
   res.json({ ok: true });
@@ -959,7 +970,7 @@ app.get("/api/me", requireAuth, async (req: any, res) => {
     email: user.email || '',
     telefono: user.telefono || '',
     twoFactorEnabled: user.twoFactorEnabled === true,
-    twoFactorRequired: user.twoFactorRequired !== false,
+    twoFactorRequired: isTwoFactorRequired(user),
   });
 });
 
