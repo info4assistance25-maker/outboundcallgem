@@ -20,6 +20,8 @@ export interface User {
   canSchedule?: boolean;
   email?: string;
   telefono?: string;
+  twoFactorEnabled?: boolean;
+  twoFactorRequired?: boolean;
 }
 
 export interface Contact {
@@ -64,6 +66,7 @@ interface CampaignContextType {
   user: User | null;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   updateProfile: (email: string, telefono: string) => Promise<{ ok: boolean; error?: string }>;
+  enable2FA: () => Promise<{ ok: boolean; error?: string }>;
   login: (u: string, p: string) => Promise<any>;
   verifyOtp: (u: string, otp: string) => Promise<any>;
   logout: () => void;
@@ -191,7 +194,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       
       if (res.ok && data.ok) {
-        const loggedUser = { username: data.username, nome: data.nome, role: data.role, isAdmin: data.isAdmin, canSchedule: data.canSchedule, email: data.email || '', telefono: data.telefono || '' };
+        const loggedUser = { username: data.username, nome: data.nome, role: data.role, isAdmin: data.isAdmin, canSchedule: data.canSchedule, email: data.email || '', telefono: data.telefono || '', twoFactorEnabled: data.twoFactorEnabled, twoFactorRequired: data.twoFactorRequired };
         setUser(loggedUser);
         sessionStorage.setItem('gem_session', JSON.stringify(loggedUser));
         if (data.token) sessionStorage.setItem('gem_token', data.token);
@@ -228,6 +231,28 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     sessionStorage.removeItem('gem_session');
     sessionStorage.removeItem('gem_token');
     setUser(null);
+  };
+
+  // Attiva il 2FA per l'utente corrente (self-service, non serve essere Admin).
+  // Dopo l'attivazione serve rifare il login per completare il setup con un
+  // nuovo QR code, quindi effettuiamo subito il logout.
+  const enable2FA = async () => {
+    if (!user) return { ok: false, error: 'Utente non loggato' };
+    try {
+      const res = await authFetch(`/api/users/${user.username}/2fa`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: true })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        logout();
+        return { ok: true };
+      }
+      return { ok: false, error: data.error };
+    } catch {
+      return { ok: false, error: 'Errore di rete' };
+    }
   };
 
   const toggleTheme = () => {
@@ -493,7 +518,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <CampaignContext.Provider value={{
-      user, setUser, login, verifyOtp, logout, updateProfile,
+      user, setUser, login, verifyOtp, logout, updateProfile, enable2FA,
       contacts, setContacts, updateManualContacts, validContacts, invalidCount, duplicateCount,
       uploadMode, setUploadMode,
       scheduleMode, setScheduleMode, scheduledAt, setScheduledAt,

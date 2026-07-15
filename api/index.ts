@@ -679,6 +679,8 @@ app.post("/api/login", async (req, res) => {
       canSchedule: user.canSchedule === true,
       email: user.email || "",
       telefono: user.telefono || "",
+      twoFactorEnabled: false,
+      twoFactorRequired: false,
     });
   }
 
@@ -761,6 +763,8 @@ app.post("/api/verify-otp", async (req, res) => {
     canSchedule: user.canSchedule === true,
     email: user.email || "",
     telefono: user.telefono || "",
+    twoFactorEnabled: true,
+    twoFactorRequired: true,
   });
 });
 
@@ -845,17 +849,34 @@ app.delete("/api/users/:username", requireAuth, requireAdmin, async (req, res) =
   res.json({ ok: true });
 });
 
-// ── Attiva/disattiva il requisito 2FA per un singolo utente (solo Admin) ──
+// ── Attiva/disattiva il requisito 2FA per un utente ──
+// Permessi: chiunque sia autenticato può ATTIVARE il proprio 2FA (azione
+// che aumenta la sicurezza, nessun rischio). DISATTIVARLO — per sé o per
+// altri — richiede invece il ruolo Admin, così come attivarlo per un
+// account diverso dal proprio: abbassare la protezione di qualcuno non
+// deve essere una scelta unilaterale dell'utente stesso.
 // Se disattivato, l'utente accede subito con utente+password, senza OTP.
-// Se riattivato, al login successivo dovrà rifare il setup da zero (nuovo
-// QR): il vecchio segreto viene cancellato per evitare stati incoerenti
-// tra ciò che l'app Authenticator dell'utente ha memorizzato e quello che
-// il server si aspetta.
-app.put("/api/users/:username/2fa", requireAuth, requireAdmin, async (req, res) => {
+// Se attivato, al login successivo dovrà fare il setup da zero (nuovo QR):
+// il vecchio segreto viene cancellato per evitare stati incoerenti tra ciò
+// che l'app Authenticator dell'utente ha memorizzato e quello che il
+// server si aspetta.
+app.put("/api/users/:username/2fa", requireAuth, async (req: any, res) => {
   const { username } = req.params;
   const { enabled } = req.body;
   if (typeof enabled !== "boolean") {
     return res.status(400).json({ ok: false, error: "Campo 'enabled' booleano richiesto" });
+  }
+
+  const isSelf = req.session?.username?.toLowerCase() === username.toLowerCase();
+  const isAdmin = req.session?.isAdmin === true;
+
+  if (!isAdmin && !(enabled && isSelf)) {
+    return res.status(403).json({
+      ok: false,
+      error: enabled
+        ? "Puoi attivare il 2FA solo per il tuo account"
+        : "Solo un Admin può disattivare il 2FA",
+    });
   }
 
   const users = await readUsers();
@@ -863,7 +884,7 @@ app.put("/api/users/:username/2fa", requireAuth, requireAdmin, async (req, res) 
   if (idx === -1) return res.status(404).json({ ok: false, error: "Utente non trovato" });
 
   if (enabled) {
-    // Riattivazione: richiede un nuovo setup da zero al prossimo login.
+    // Attivazione: richiede un nuovo setup da zero al prossimo login.
     users[idx] = { ...users[idx], twoFactorRequired: true, twoFactorSecret: undefined, twoFactorEnabled: false };
   } else {
     users[idx] = { ...users[idx], twoFactorRequired: false };

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
 import { GemLogo } from './Icons';
-import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck, Check } from 'lucide-react';
+import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck, Check, ShieldAlert, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Step1Upload, Step2Preview, Step3Settings } from './CampaignSteps';
 import { AppointmentPage } from './AppuntamentiSection';
@@ -118,12 +118,32 @@ function CampaignStepper() {
 }
 
 export function Dashboard() {
-  const { user, darkMode, toggleTheme, logout } = useCampaign();
+  const { user, darkMode, toggleTheme, logout, enable2FA } = useCampaign();
   const isAdmin = user?.isAdmin || user?.role === 'Admin';
   const isViewer = user?.role === 'Viewer';
   const savedTab = sessionStorage.getItem('gem_active_tab') as Tab | null;
   const [activeTab, setActiveTab] = useState<Tab>(savedTab || (isViewer ? 'history' : 'campaign'));
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [show2FABanner, setShow2FABanner] = useState(
+    !!user && !user.twoFactorEnabled && sessionStorage.getItem('gem_2fa_banner_dismissed') !== '1'
+  );
+  const [enabling2FA, setEnabling2FA] = useState(false);
+
+  const dismiss2FABanner = () => {
+    sessionStorage.setItem('gem_2fa_banner_dismissed', '1');
+    setShow2FABanner(false);
+  };
+
+  const handleEnable2FA = async () => {
+    setEnabling2FA(true);
+    const res = await enable2FA();
+    if (!res.ok) {
+      setEnabling2FA(false);
+      alert(res.error || 'Errore durante l\'attivazione del 2FA');
+    }
+    // Se ok, enable2FA() esegue già il logout: si torna alla schermata di
+    // login, dove al prossimo accesso comparirà il QR per il setup.
+  };
 
   const handleNav = (tab: Tab) => {
     setActiveTab(tab);
@@ -280,6 +300,29 @@ export function Dashboard() {
 
         {/* Content */}
         <main className="flex-1 px-6 lg:px-10 py-8">
+
+          {show2FABanner && (
+            <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/10 animate-in fade-in slide-in-from-top-2">
+              <ShieldAlert className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Il tuo account non ha l'autenticazione a due fattori attiva</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Ti consigliamo di attivarla per proteggere meglio il tuo accesso. Ti verrà richiesto di rifare il login per completare la configurazione.</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleEnable2FA}
+                  disabled={enabling2FA}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-70"
+                >
+                  {enabling2FA && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {enabling2FA ? 'Attivazione...' : 'Attiva ora'}
+                </button>
+                <button onClick={dismiss2FABanner} className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {activeTab === 'campaign' && !isViewer && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
