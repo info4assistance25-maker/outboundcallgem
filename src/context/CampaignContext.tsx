@@ -153,7 +153,26 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   // Load persistence
   useEffect(() => {
     const s = sessionStorage.getItem('gem_session');
-    if (s) setUser(JSON.parse(s));
+    if (s) {
+      const cachedUser = JSON.parse(s);
+      setUser(cachedUser);
+      // Il campo twoFactorEnabled/Required potrebbe essere non aggiornato se
+      // la sessione salvata risale a un login precedente all'introduzione
+      // di questi campi (o se un Admin ha cambiato l'impostazione altrove).
+      // Lo aggiorniamo sempre da una fonte fresca, invece di fidarci solo
+      // della cache — altrimenti il banner "2FA non attivo" può comparire
+      // per errore anche quando è già stato attivato.
+      authFetch(`/api/me?username=${encodeURIComponent(cachedUser.username)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.ok) {
+            const updated = { ...cachedUser, twoFactorEnabled: data.twoFactorEnabled, twoFactorRequired: data.twoFactorRequired, email: data.email, telefono: data.telefono };
+            setUser(updated);
+            sessionStorage.setItem('gem_session', JSON.stringify(updated));
+          }
+        })
+        .catch(() => {});
+    }
 
     const h = localStorage.getItem('gem_history');
     if (h) setHistory(JSON.parse(h));

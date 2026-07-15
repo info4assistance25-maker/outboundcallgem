@@ -954,7 +954,13 @@ app.get("/api/me", requireAuth, async (req: any, res) => {
   const users = await readUsers();
   const user = users.find((u: any) => u.username.toLowerCase() === String(username).toLowerCase());
   if (!user) return res.status(404).json({ ok: false });
-  res.json({ ok: true, email: user.email || '', telefono: user.telefono || '' });
+  res.json({
+    ok: true,
+    email: user.email || '',
+    telefono: user.telefono || '',
+    twoFactorEnabled: user.twoFactorEnabled === true,
+    twoFactorRequired: user.twoFactorRequired !== false,
+  });
 });
 
 app.put("/api/me", requireAuth, async (req: any, res) => {

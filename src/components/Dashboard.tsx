@@ -124,10 +124,20 @@ export function Dashboard() {
   const savedTab = sessionStorage.getItem('gem_active_tab') as Tab | null;
   const [activeTab, setActiveTab] = useState<Tab>(savedTab || (isViewer ? 'history' : 'campaign'));
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [show2FABanner, setShow2FABanner] = useState(
-    !!user && !user.twoFactorEnabled && sessionStorage.getItem('gem_2fa_banner_dismissed') !== '1'
-  );
+  const [show2FABanner, setShow2FABanner] = useState(false);
   const [enabling2FA, setEnabling2FA] = useState(false);
+
+  // Il valore di user.twoFactorEnabled può arrivare un istante dopo il mount
+  // (viene rinfrescato dal server per evitare di fidarsi di una sessione
+  // salvata potenzialmente non aggiornata), quindi il banner va ricalcolato
+  // ogni volta che cambia, non solo alla prima render.
+  React.useEffect(() => {
+    if (user && !user.twoFactorEnabled && sessionStorage.getItem('gem_2fa_banner_dismissed') !== '1') {
+      setShow2FABanner(true);
+    } else if (user?.twoFactorEnabled) {
+      setShow2FABanner(false);
+    }
+  }, [user?.twoFactorEnabled]);
 
   const dismiss2FABanner = () => {
     sessionStorage.setItem('gem_2fa_banner_dismissed', '1');
