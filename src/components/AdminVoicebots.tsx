@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, Save, X, Phone, CheckCircle2, AlertCircle, Toggle
 import { cn } from '../lib/utils';
 import { ConfirmModal } from './ConfirmModal';
 import { SkeletonRow, EmptyState } from './Skeleton';
+import { authFetch } from '../lib/authFetch';
 
 function FormRow({ label, field, placeholder, type = 'text', form, setForm }: any) {
   return (
@@ -52,7 +53,7 @@ export function AdminVoicebots() {
 
   const handleSaveNew = async () => {
     if (!form.nome || !form.exten || !form.context) return notify('err', 'Nome, interno e contesto sono obbligatori');
-    const res = await fetch('/api/voicebots', {
+    const res = await authFetch('/api/voicebots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...form, exten: parseInt(form.exten) })
@@ -70,7 +71,7 @@ export function AdminVoicebots() {
     setBots(prev => prev.map(b => b.id === id ? updated : b));
     setEditId(null);
     notify('ok', 'Salvato');
-    fetch(`/api/voicebots/${id}`, {
+    authFetch(`/api/voicebots/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updated)
@@ -84,7 +85,7 @@ export function AdminVoicebots() {
     setBots(prev => prev.filter(b => b.id !== id));
     setConfirmDelete(null);
     notify('ok', 'Eliminato');
-    fetch(`/api/voicebots/${id}`, { method: 'DELETE' })
+    authFetch(`/api/voicebots/${id}`, { method: 'DELETE' })
       .then(() => loadVoicebots())
       .catch(() => { notify('err', 'Errore eliminazione'); load(); loadVoicebots(); });
   };
@@ -93,7 +94,7 @@ export function AdminVoicebots() {
     const nuovoStato = !bot.attivo;
     setBots(prev => prev.map(b => b.id === bot.id ? { ...b, attivo: nuovoStato } : b));
     try {
-      const res = await fetch(`/api/voicebots/${bot.id}`, {
+      const res = await authFetch(`/api/voicebots/${bot.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...bot, attivo: nuovoStato })

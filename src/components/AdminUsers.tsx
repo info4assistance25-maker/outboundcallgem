@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useCampaign } from '../context/CampaignContext';
-import { Users, Trash2, Plus, Loader2, Edit2, X, Save } from 'lucide-react';
+import { Users, Trash2, Plus, Loader2, Edit2, X, Save, ShieldCheck, ShieldOff } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ConfirmModal } from './ConfirmModal';
 import { SkeletonUserRow, EmptyState } from './Skeleton';
+import { authFetch } from '../lib/authFetch';
 
 interface EditingState {
   username: string;
   nome: string;
-  password?: string;
+  password?: string; // vuoto = non cambiare la password esistente
   role: string;
   canSchedule: boolean;
 }
@@ -33,7 +34,7 @@ export function AdminUsers() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/users');
+      const res = await authFetch('/api/users');
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
@@ -54,7 +55,7 @@ export function AdminUsers() {
   const handleDelete = async (username: string) => {
     setConfirmDeleteUser(null);
     try {
-      const res = await fetch(`/api/users/${username}`, { method: 'DELETE' });
+      const res = await authFetch(`/api/users/${username}`, { method: 'DELETE' });
       if (res.ok) {
         fetchUsers();
       } else {
@@ -71,7 +72,7 @@ export function AdminUsers() {
     setEditingUser({
       username: u.username,
       nome: u.nome,
-      password: u.password, // Only if returned by API, otherwise keep blank
+      password: '', // vuoto = mantieni la password esistente
       role: u.role || (u.isAdmin ? 'Admin' : 'Editor'),
       canSchedule: u.canSchedule === true
     });
@@ -84,18 +85,18 @@ export function AdminUsers() {
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-    if (!editingUser.nome || !editingUser.password || !editingUser.role) {
+    if (!editingUser.nome || !editingUser.role) {
        alert("Compila tutti i campi");
        return;
     }
 
     try {
-      const res = await fetch(`/api/users/${editingUser.username}`, {
+      const res = await authFetch(`/api/users/${editingUser.username}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: editingUser.nome,
-          password: editingUser.password,
+          password: editingUser.password || undefined, // vuoto = non cambiare
           role: editingUser.role,
           canSchedule: editingUser.canSchedule
         })
@@ -125,7 +126,7 @@ export function AdminUsers() {
     setIsAdding(true);
     
     try {
-      const res = await fetch('/api/users', {
+      const res = await authFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -189,10 +190,10 @@ export function AdminUsers() {
             </div>
           ) : (
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-              <div className="grid grid-cols-[2fr_2fr_2fr_2fr_1fr_auto] bg-slate-50 dark:bg-slate-800/80 p-3 border-b border-slate-200 dark:border-slate-700 gap-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <div className="grid grid-cols-[2fr_2fr_1fr_2fr_1fr_auto] bg-slate-50 dark:bg-slate-800/80 p-3 border-b border-slate-200 dark:border-slate-700 gap-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
                 <span>Nome</span>
                 <span>Username</span>
-                <span>Password</span>
+                <span>2FA</span>
                 <span>Ruolo</span>
                 <span className="text-center" title="Schedulazione Campagna">Sched.</span>
                 <span></span>
@@ -210,7 +211,7 @@ export function AdminUsers() {
                   if (isEditing) {
                     return (
                       <div key={u.username} className="bg-brand-50 dark:bg-brand-900/10 border-b border-brand-100 dark:border-brand-800 p-3 last:border-0">
-                        <form onSubmit={handleEditSave} className="grid grid-cols-[2fr_2fr_2fr_2fr_1fr_auto] gap-3 items-center text-sm">
+                        <form onSubmit={handleEditSave} className="grid grid-cols-[2fr_2fr_1fr_2fr_1fr_auto] gap-3 items-center text-sm">
                           <input 
                             type="text" 
                             required
@@ -221,10 +222,11 @@ export function AdminUsers() {
                           <span className="text-slate-500 truncate" title={u.username}>{u.username}</span>
                           <input 
                             type="text" 
-                            required
+                            placeholder="invariata"
+                            title="Lascia vuoto per non cambiare la password"
                             value={editingUser.password}
                             onChange={e => setEditingUser({...editingUser, password: e.target.value})}
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
+                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500 placeholder:text-slate-400 placeholder:italic"
                           />
                           <select 
                             value={editingUser.role}
@@ -259,10 +261,16 @@ export function AdminUsers() {
                   const hasSchedule = u.canSchedule === true;
 
                   return (
-                    <div key={u.username} className="grid grid-cols-[2fr_2fr_2fr_2fr_1fr_auto] gap-3 p-3 items-center border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
+                    <div key={u.username} className="grid grid-cols-[2fr_2fr_1fr_2fr_1fr_auto] gap-3 p-3 items-center border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
                       <span className="font-medium text-slate-900 dark:text-slate-200 truncate" title={u.nome}>{u.nome}</span>
                       <span className="text-slate-500 truncate" title={u.username}>{u.username}</span>
-                      <span className="text-slate-400 font-mono truncate" title={u.password}>{u.password}</span>
+                      <span title={u.twoFactorEnabled ? '2FA attivo' : '2FA non ancora configurato'}>
+                        {u.twoFactorEnabled ? (
+                          <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                        ) : (
+                          <ShieldOff className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                        )}
+                      </span>
                       <span className={cn(
                         "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit",
                         u.role === 'Admin' || u.isAdmin ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" :

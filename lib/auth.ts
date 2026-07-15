@@ -3,9 +3,13 @@ import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET && process.env.NODE_ENV === "production") {
-  throw new Error(
-    "JWT_SECRET non configurato. Imposta una stringa lunga e casuale nelle variabili d'ambiente (Vercel Secrets / .env)."
+if (!JWT_SECRET) {
+  // ATTENZIONE: nessun JWT_SECRET configurato — le sessioni useranno un
+  // segreto di fallback non sicuro. Impostare JWT_SECRET su Vercel appena
+  // possibile. Non blocchiamo l'avvio dell'app (un crash qui abbatterebbe
+  // anche le rotte non correlate, come già successo con DATABASE_URL).
+  console.error(
+    "JWT_SECRET non configurato — usando un segreto di fallback INSICURO. Imposta JWT_SECRET nelle variabili d'ambiente Vercel al più presto."
   );
 }
 const SECRET = JWT_SECRET || "dev-only-insecure-secret-do-not-use-in-production";

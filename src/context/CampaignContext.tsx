@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { isValidPhoneNumber, normalizePhoneNumber } from '../lib/utils';
+import { authFetch } from '../lib/authFetch';
 import * as XLSX from 'xlsx';
 
 export interface Voicebot {
@@ -190,9 +191,10 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       
       if (res.ok && data.ok) {
-        const loggedUser = { username: data.username, nome: data.nome, role: data.role, isAdmin: data.isAdmin, canSchedule: data.canSchedule };
+        const loggedUser = { username: data.username, nome: data.nome, role: data.role, isAdmin: data.isAdmin, canSchedule: data.canSchedule, email: data.email || '', telefono: data.telefono || '' };
         setUser(loggedUser);
         sessionStorage.setItem('gem_session', JSON.stringify(loggedUser));
+        if (data.token) sessionStorage.setItem('gem_token', data.token);
         fetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: data.username, nome: data.nome, action: 'login' }) }).catch(() => {});
         return { ok: true };
       }
@@ -205,7 +207,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   const updateProfile = async (email: string, telefono: string) => {
     try {
-      const res = await fetch('/api/me', {
+      const res = await authFetch('/api/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: user?.username, email, telefono })
@@ -224,6 +226,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     if (user) fetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user.username, nome: user.nome, action: 'logout' }) }).catch(() => {});
     sessionStorage.removeItem('gem_session');
+    sessionStorage.removeItem('gem_token');
     setUser(null);
   };
 

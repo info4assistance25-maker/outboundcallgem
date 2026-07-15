@@ -3,6 +3,10 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import bcrypt from "bcryptjs";
+import { generateSecret as generateTotpSecret, generateURI as generateTotpURI, verify as verifyTotp } from "otplib";
+import QRCode from "qrcode";
+import { issueSessionToken, requireAuth, requireAdmin } from "../lib/auth";
 
 // IMPORTANTE: disabilita il body-parsing automatico di Vercel.
 // Senza questo, Vercel consuma lo stream della richiesta prima che
@@ -98,6 +102,22 @@ async function upsertCallResult(entry: any) {
   } catch (err) {
     console.error("Error upserting call_results in Postgres (dopo retry):", err);
   }
+}
+
+// ── Password: hashing bcrypt con migrazione trasparente da testo in chiaro ──
+// Gli utenti esistenti hanno la password salvata in chiaro in users.json.
+// Invece di forzare un reset per tutti, verifichiamo prima se è già un hash
+// bcrypt; se non lo è, confrontiamo in chiaro come prima e, se corretto,
+// la ri-salviamo hashata — la migrazione avviene da sola al primo login.
+function isBcryptHash(value: string): boolean {
+  return /^\$2[aby]\$\d{2}\$/.test(value);
+}
+
+async function checkPassword(plain: string, stored: string): Promise<boolean> {
+  if (isBcryptHash(stored)) {
+    return bcrypt.compare(plain, stored);
+  }
+  return plain === stored; // legacy in chiaro
 }
 
 function verifyWildixSignature(rawBody: string, signature: string | undefined): boolean {
@@ -572,40 +592,111 @@ app.post("/api/login", async (req, res) => {
   }
 
   const users = await readUsers();
-  const user = users.find(
-    (u: any) => u.username.toLowerCase() === username.toLowerCase() && u.password === password
-  );
+  const idx = users.findIndex((u: any) => u.username.toLowerCase() === username.toLowerCase());
+  const user = idx !== -1 ? users[idx] : null;
 
-  if (user) {
-    res.json({ 
-      ok: true, 
-      username: user.username, 
-      nome: user.nome, 
-      role: user.role || (user.isAdmin ? 'Admin' : 'Editor'),
-      isAdmin: user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === 'Admin',
-      canSchedule: user.canSchedule === true,
-      email: user.email || '',
-      telefono: user.telefono || ''
-    });
-  } else {
-    res.status(401).json({ ok: false, error: "Credenziali errate" });
+  if (!user || !(await checkPassword(password, user.password))) {
+    return res.status(401).json({ ok: false, error: "Credenziali errate" });
   }
+
+  // Migrazione trasparente: se la password era ancora in chiaro, la
+  // sostituiamo subito con l'hash bcrypt corrispondente.
+  if (!isBcryptHash(user.password)) {
+    try {
+      users[idx] = { ...user, password: await bcrypt.hash(password, 12) };
+      await writeUsers(users);
+    } catch (err) {
+      console.error("Errore migrazione password a bcrypt (non bloccante):", err);
+    }
+  }
+
+  // ── 2FA: se l'utente non ha ancora un segreto TOTP, lo generiamo ora e
+  // chiediamo di completare il setup scansionando il QR code. Se ce l'ha
+  // già ed è attivo, chiediamo semplicemente il codice a 6 cifre. ──
+  if (!user.twoFactorSecret || !user.twoFactorEnabled) {
+    const secret = generateTotpSecret();
+    users[idx] = { ...users[idx], twoFactorSecret: secret, twoFactorEnabled: false };
+    try {
+      await writeUsers(users);
+    } catch (err) {
+      console.error("Errore salvataggio segreto 2FA:", err);
+      return res.status(500).json({ ok: false, error: "Errore configurazione 2FA, riprova." });
+    }
+    const otpauthUrl = generateTotpURI({ issuer: "GEM Outbound", label: user.username, secret });
+    const qrUrl = await QRCode.toDataURL(otpauthUrl);
+    return res.json({ ok: false, requires2FA: true, setup2FA: true, qrUrl });
+  }
+
+  return res.json({ ok: false, requires2FA: true, setup2FA: false });
 });
 
-app.get("/api/users", async (req, res) => {
+app.post("/api/verify-otp", async (req, res) => {
+  const { username, otp } = req.body;
+  if (!username || !otp) {
+    return res.status(400).json({ ok: false, error: "Username e codice OTP richiesti" });
+  }
+
   const users = await readUsers();
-  // Return users without passwords for safety, though it's internal logic
+  const idx = users.findIndex((u: any) => u.username.toLowerCase() === String(username).toLowerCase());
+  const user = idx !== -1 ? users[idx] : null;
+
+  if (!user || !user.twoFactorSecret) {
+    return res.status(400).json({ ok: false, error: "2FA non configurato per questo utente. Effettua di nuovo il login." });
+  }
+
+  let valid = false;
+  try {
+    const result = await verifyTotp({ secret: user.twoFactorSecret, token: String(otp) });
+    valid = result.valid === true;
+  } catch (err) {
+    console.error("Errore verifica OTP:", err);
+  }
+
+  if (!valid) {
+    return res.status(401).json({ ok: false, error: "Codice OTP non valido o scaduto" });
+  }
+
+  // Al primo codice corretto, il 2FA passa da "in configurazione" ad "attivo"
+  if (!user.twoFactorEnabled) {
+    users[idx] = { ...user, twoFactorEnabled: true };
+    try {
+      await writeUsers(users);
+    } catch (err) {
+      console.error("Errore attivazione 2FA (non bloccante):", err);
+    }
+  }
+
+  const role = user.role || (user.isAdmin ? "Admin" : "Editor");
+  const isAdmin = user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === "Admin";
+  const token = issueSessionToken({ username: user.username, isAdmin });
+
+  res.json({
+    ok: true,
+    token,
+    username: user.username,
+    nome: user.nome,
+    role,
+    isAdmin,
+    canSchedule: user.canSchedule === true,
+    email: user.email || "",
+    telefono: user.telefono || "",
+  });
+});
+
+app.get("/api/users", requireAuth, requireAdmin, async (req, res) => {
+  const users = await readUsers();
+  // Password e segreto 2FA non vengono mai esposti al client.
   const safeUsers = users.map((u: any) => ({ 
     username: u.username, 
     nome: u.nome, 
-    password: u.password, 
     role: u.role || (u.isAdmin ? 'Admin' : 'Editor'),
-    canSchedule: u.canSchedule === true
+    canSchedule: u.canSchedule === true,
+    twoFactorEnabled: u.twoFactorEnabled === true,
   }));
   res.json(safeUsers);
 });
 
-app.post("/api/users", async (req, res) => {
+app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
   const { username, password, nome, role, canSchedule } = req.body;
   
   if (!username || !password || !nome || !role) {
@@ -617,17 +708,18 @@ app.post("/api/users", async (req, res) => {
     return res.status(400).json({ error: "Username già esistente" });
   }
 
-  users.push({ username, password, nome, role, isAdmin: role === 'Admin', canSchedule: canSchedule === true });
+  const hashed = await bcrypt.hash(password, 12);
+  users.push({ username, password: hashed, nome, role, isAdmin: role === 'Admin', canSchedule: canSchedule === true });
   await writeUsers(users);
 
   res.json({ ok: true });
 });
 
-app.put("/api/users/:username", async (req, res) => {
+app.put("/api/users/:username", requireAuth, requireAdmin, async (req, res) => {
   const { username } = req.params;
   const { password, nome, role, canSchedule } = req.body;
 
-  if (!password || !nome || !role) {
+  if (!nome || !role) {
     return res.status(400).json({ error: "Dati mancanti" });
   }
 
@@ -638,9 +730,14 @@ app.put("/api/users/:username", async (req, res) => {
     return res.status(404).json({ error: "Utente non trovato" });
   }
 
+  // La password è opzionale in modifica: se lasciata vuota, manteniamo
+  // quella esistente invece di richiedere di reinserirla ogni volta
+  // (ora che non viene più restituita in chiaro dal GET /api/users).
+  const newPassword = password && password.trim() ? await bcrypt.hash(password, 12) : users[index].password;
+
   users[index] = { 
     ...users[index], 
-    password, 
+    password: newPassword, 
     nome, 
     role, 
     isAdmin: role === 'Admin' || users[index].username.toLowerCase() === 'admin',
@@ -651,7 +748,7 @@ app.put("/api/users/:username", async (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/api/users/:username", async (req, res) => {
+app.delete("/api/users/:username", requireAuth, requireAdmin, async (req, res) => {
   const { username } = req.params;
   
   let users = await readUsers();
@@ -717,18 +814,25 @@ app.post("/api/support", async (req, res) => {
 });
 
 // ── PROFILO UTENTE ──
-app.get("/api/me", async (req, res) => {
+app.get("/api/me", requireAuth, async (req: any, res) => {
   const { username } = req.query;
   if (!username) return res.status(400).json({ ok: false });
+  if (req.session?.username?.toLowerCase() !== String(username).toLowerCase() && !req.session?.isAdmin) {
+    return res.status(403).json({ ok: false, error: 'Non puoi vedere il profilo di un altro utente' });
+  }
   const users = await readUsers();
   const user = users.find((u: any) => u.username.toLowerCase() === String(username).toLowerCase());
   if (!user) return res.status(404).json({ ok: false });
   res.json({ ok: true, email: user.email || '', telefono: user.telefono || '' });
 });
 
-app.put("/api/me", async (req, res) => {
+app.put("/api/me", requireAuth, async (req: any, res) => {
   const { username, email, telefono } = req.body;
   if (!username) return res.status(400).json({ ok: false, error: 'Username richiesto' });
+  // Un utente può modificare solo il proprio profilo, salvo sia Admin
+  if (req.session?.username?.toLowerCase() !== String(username).toLowerCase() && !req.session?.isAdmin) {
+    return res.status(403).json({ ok: false, error: 'Non puoi modificare il profilo di un altro utente' });
+  }
   const users = await readUsers();
   const idx = users.findIndex((u: any) => u.username.toLowerCase() === username.toLowerCase());
   if (idx === -1) return res.status(404).json({ ok: false, error: 'Utente non trovato' });
@@ -743,7 +847,7 @@ app.get("/api/voicebots", async (_req, res) => {
   res.json({ ok: true, voicebots: await readVoicebots() });
 });
 
-app.post("/api/voicebots", async (req, res) => {
+app.post("/api/voicebots", requireAuth, requireAdmin, async (req, res) => {
   const { nome, exten, context, descrizione } = req.body;
   if (!nome || !exten || !context) return res.status(400).json({ ok: false, error: "Nome, interno e contesto sono obbligatori" });
   const bots = await readVoicebots();
@@ -757,7 +861,7 @@ app.post("/api/voicebots", async (req, res) => {
   }
 });
 
-app.put("/api/voicebots/:id", async (req, res) => {
+app.put("/api/voicebots/:id", requireAuth, requireAdmin, async (req, res) => {
   const bots = await readVoicebots();
   const idx = bots.findIndex((b: any) => b.id === req.params.id);
   if (idx === -1) return res.status(404).json({ ok: false, error: "Voicebot non trovato" });
@@ -770,7 +874,7 @@ app.put("/api/voicebots/:id", async (req, res) => {
   }
 });
 
-app.delete("/api/voicebots/:id", async (req, res) => {
+app.delete("/api/voicebots/:id", requireAuth, requireAdmin, async (req, res) => {
   const bots = (await readVoicebots()).filter((b: any) => b.id !== req.params.id);
   try {
     await writeVoicebots(bots);
