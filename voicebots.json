@@ -38,5 +38,13 @@
     "context": "outbound-voicebot",
     "descrizione": "demo",
     "attivo": true
+  },
+  {
+    "id": "vb1784108733708",
+    "nome": "Marcello",
+    "exten": 11,
+    "context": "outbound-voicebot",
+    "descrizione": "",
+    "attivo": true
   }
 ]
