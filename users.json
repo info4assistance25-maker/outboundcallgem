@@ -40,7 +40,8 @@
     "email": "ebattaglia@gemgroupsrls.it",
     "telefono": "",
     "twoFactorEnabled": false,
-    "twoFactorRequired": true
+    "twoFactorRequired": true,
+    "twoFactorSecret": "V62KL3PIQ3AEFZFP7P6T5ADNCEXTOMD6"
   },
   {
     "username": "miranda",
