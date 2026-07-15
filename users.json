@@ -19,7 +19,7 @@
   },
   {
     "username": "stefano",
-    "password": "Gem@2026!",
+    "password": "$2a$12$6zkX4r2XbL.FSQtJ.eFfQed8yNfLxhijhLt0c5HeWkanufg7TPhUy",
     "nome": "Stefano",
     "canSchedule": true,
     "role": "Admin",
