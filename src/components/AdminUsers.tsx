@@ -233,7 +233,8 @@ export function AdminUsers() {
                   if (isEditing) {
                     return (
                       <div key={u.username} className="bg-brand-50 dark:bg-brand-900/10 border-b border-brand-100 dark:border-brand-800 p-3 last:border-0">
-                        <form onSubmit={handleEditSave} className="grid grid-cols-[2fr_2fr_1fr_2fr_1fr_auto] gap-3 items-center text-sm">
+                        <form onSubmit={handleEditSave}>
+                        <div className="grid grid-cols-[2fr_2fr_1fr_2fr_1fr_auto] gap-3 items-center text-sm">
                           <input 
                             type="text" 
                             required
@@ -242,14 +243,15 @@ export function AdminUsers() {
                             className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
                           />
                           <span className="text-slate-500 truncate" title={u.username}>{u.username}</span>
-                          <input 
-                            type="text" 
-                            placeholder="invariata"
-                            title="Lascia vuoto per non cambiare la password"
-                            value={editingUser.password}
-                            onChange={e => setEditingUser({...editingUser, password: e.target.value})}
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500 placeholder:text-slate-400 placeholder:italic"
-                          />
+                          <span title={u.twoFactorRequired === false ? '2FA disattivato' : u.twoFactorEnabled ? '2FA attivo' : '2FA richiesto, non ancora configurato'}>
+                            {u.twoFactorRequired === false ? (
+                              <ShieldOff className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                            ) : u.twoFactorEnabled ? (
+                              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                            ) : (
+                              <ShieldCheck className="w-4 h-4 text-amber-500" />
+                            )}
+                          </span>
                           <select 
                             value={editingUser.role}
                             onChange={e => setEditingUser({...editingUser, role: e.target.value})}
@@ -275,6 +277,18 @@ export function AdminUsers() {
                               <X className="w-4 h-4" />
                             </button>
                           </div>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <label className="text-xs font-semibold text-slate-500 shrink-0">Nuova password:</label>
+                          <input 
+                            type="text" 
+                            placeholder="lascia vuoto per non cambiare"
+                            title="Lascia vuoto per non cambiare la password"
+                            value={editingUser.password}
+                            onChange={e => setEditingUser({...editingUser, password: e.target.value})}
+                            className="flex-1 max-w-xs px-2 py-1 text-xs bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500 placeholder:text-slate-400 placeholder:italic"
+                          />
+                        </div>
                         </form>
                       </div>
                     );
