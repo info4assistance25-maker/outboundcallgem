@@ -8,7 +8,7 @@
     "email": "sgalli@gemgroupsrls.it",
     "telefono": "+393533266370",
     "twoFactorSecret": "7ODMPB3CH5V36H3A3MIMYQROPET3FWSB",
-    "twoFactorEnabled": false
+    "twoFactorEnabled": true
   },
   {
     "username": "admin",
