@@ -6,7 +6,7 @@ import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
 import { generateSecret as generateTotpSecret, generateURI as generateTotpURI, verify as verifyTotp } from "otplib";
 import QRCode from "qrcode";
-import { issueSessionToken, requireAuth, requireAdmin } from "../lib/auth";
+import jwt from "jsonwebtoken";
 
 // IMPORTANTE: disabilita il body-parsing automatico di Vercel.
 // Senza questo, Vercel consuma lo stream della richiesta prima che
@@ -59,6 +59,58 @@ try {
   sql = neon(process.env.DATABASE_URL!);
 } catch (err) {
   console.error("DATABASE_URL non configurata o non valida — funzionalità Postgres (esiti chiamate, follow-up, statistiche) disabilitate:", err);
+}
+
+// ── Sessioni JWT ──────────────────────────────────────────────────────
+// ATTENZIONE: questa logica era originariamente in lib/auth.ts, ma è stata
+// spostata qui perché Vercel impacchetta api/index.ts come funzione
+// serverless standalone e NON include file al di fuori della cartella
+// /api (un import relativo tipo "../lib/auth" causa un crash in produzione
+// con ERR_MODULE_NOT_FOUND, non riproducibile in locale con tsc/vite).
+interface SessionPayload {
+  username: string;
+  isAdmin: boolean;
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error(
+    "JWT_SECRET non configurato — uso un segreto di fallback INSICURO. Imposta JWT_SECRET nelle variabili d'ambiente Vercel al più presto."
+  );
+}
+const SESSION_SECRET = JWT_SECRET || "dev-only-insecure-secret-do-not-use-in-production";
+
+function issueSessionToken(payload: SessionPayload): string {
+  return jwt.sign(payload, SESSION_SECRET, { expiresIn: "12h" });
+}
+
+function verifySessionToken(token: string): SessionPayload | null {
+  try {
+    return jwt.verify(token, SESSION_SECRET) as SessionPayload;
+  } catch {
+    return null;
+  }
+}
+
+function requireAuth(req: express.Request & { session?: SessionPayload }, res: express.Response, next: express.NextFunction) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) {
+    return res.status(401).json({ ok: false, error: "Autenticazione richiesta" });
+  }
+  const session = verifySessionToken(token);
+  if (!session) {
+    return res.status(401).json({ ok: false, error: "Sessione non valida o scaduta" });
+  }
+  req.session = session;
+  next();
+}
+
+function requireAdmin(req: express.Request & { session?: SessionPayload }, res: express.Response, next: express.NextFunction) {
+  if (!req.session?.isAdmin) {
+    return res.status(403).json({ ok: false, error: "Permessi insufficienti (richiesto ruolo Admin)" });
+  }
+  next();
 }
 
 async function readCallResults(limit = 50, offset = 0): Promise<{ rows: any[]; total: number }> {
