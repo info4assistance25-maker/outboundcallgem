@@ -13,7 +13,7 @@
     "exten": 8001,
     "context": "outbound-voicebot",
     "descrizione": "",
-    "attivo": true
+    "attivo": false
   },
   {
     "id": "vb1781535510904",
@@ -21,7 +21,7 @@
     "exten": 8002,
     "context": "outbound-voicebot",
     "descrizione": "",
-    "attivo": false
+    "attivo": true
   },
   {
     "id": "vb1782225261791",
