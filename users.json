@@ -16,8 +16,7 @@
     "nome": "Admin",
     "isAdmin": true,
     "canSchedule": true,
-    "twoFactorRequired": true,
-    "twoFactorEnabled": false
+    "twoFactorRequired": false
   },
   {
     "username": "stefano",
