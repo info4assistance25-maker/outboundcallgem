@@ -37,6 +37,7 @@ export function Login() {
       const loggedUser = { username: res.username, nome: res.nome, role: res.role, isAdmin: res.isAdmin, canSchedule: res.canSchedule, email: res.email || '', telefono: res.telefono || '' };
       setUser(loggedUser);
       sessionStorage.setItem('gem_session', JSON.stringify(loggedUser));
+      if (res.token) sessionStorage.setItem('gem_token', res.token);
     } else {
       setError(res?.error || 'Credenziali non valide');
     }

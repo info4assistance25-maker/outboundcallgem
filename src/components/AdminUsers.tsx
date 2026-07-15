@@ -68,6 +68,28 @@ export function AdminUsers() {
     }
   };
 
+  const handleToggle2FA = async (username: string, currentlyRequired: boolean) => {
+    const nextEnabled = !currentlyRequired;
+    // Aggiornamento ottimistico
+    setUsers(prev => prev.map(u => u.username === username ? { ...u, twoFactorRequired: nextEnabled, twoFactorEnabled: nextEnabled ? false : u.twoFactorEnabled } : u));
+    try {
+      const res = await authFetch(`/api/users/${username}/2fa`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: nextEnabled })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Errore durante la modifica del 2FA');
+        fetchUsers(); // rollback
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Errore di rete');
+      fetchUsers(); // rollback
+    }
+  };
+
   const handleEditStart = (u: any) => {
     setEditingUser({
       username: u.username,
@@ -264,13 +286,25 @@ export function AdminUsers() {
                     <div key={u.username} className="grid grid-cols-[2fr_2fr_1fr_2fr_1fr_auto] gap-3 p-3 items-center border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
                       <span className="font-medium text-slate-900 dark:text-slate-200 truncate" title={u.nome}>{u.nome}</span>
                       <span className="text-slate-500 truncate" title={u.username}>{u.username}</span>
-                      <span title={u.twoFactorEnabled ? '2FA attivo' : '2FA non ancora configurato'}>
-                        {u.twoFactorEnabled ? (
+                      <button
+                        onClick={() => handleToggle2FA(u.username, u.twoFactorRequired !== false)}
+                        title={
+                          u.twoFactorRequired === false
+                            ? 'Clicca per RICHIEDERE il 2FA a questo utente (dovrà rifare il setup)'
+                            : u.twoFactorEnabled
+                              ? 'Clicca per DISATTIVARE il 2FA (l\'utente accederà con solo utente/password)'
+                              : '2FA richiesto ma non ancora configurato dall\'utente — clicca per disattivarlo'
+                        }
+                        className="flex items-center justify-center hover:opacity-70 transition-opacity"
+                      >
+                        {u.twoFactorRequired === false ? (
+                          <ShieldOff className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                        ) : u.twoFactorEnabled ? (
                           <ShieldCheck className="w-4 h-4 text-emerald-500" />
                         ) : (
-                          <ShieldOff className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                          <ShieldCheck className="w-4 h-4 text-amber-500" />
                         )}
-                      </span>
+                      </button>
                       <span className={cn(
                         "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit",
                         u.role === 'Admin' || u.isAdmin ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" :

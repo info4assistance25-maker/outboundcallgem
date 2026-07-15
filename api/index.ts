@@ -662,6 +662,26 @@ app.post("/api/login", async (req, res) => {
     }
   }
 
+  // ── 2FA: gli admin possono disattivarlo per singolo utente (vedi rotta
+  // PUT /api/users/:username/2fa). Se disattivato, si accede subito con
+  // solo utente+password, come prima dell'introduzione del 2FA. ──
+  if (user.twoFactorRequired === false) {
+    const role = user.role || (user.isAdmin ? "Admin" : "Editor");
+    const isAdmin = user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === "Admin";
+    const token = issueSessionToken({ username: user.username, isAdmin });
+    return res.json({
+      ok: true,
+      token,
+      username: user.username,
+      nome: user.nome,
+      role,
+      isAdmin,
+      canSchedule: user.canSchedule === true,
+      email: user.email || "",
+      telefono: user.telefono || "",
+    });
+  }
+
   // ── 2FA: se l'utente non ha ancora un segreto TOTP, lo generiamo ora e
   // chiediamo di completare il setup scansionando il QR code. Se ha già un
   // segreto ma non ha ancora completato la verifica (setup in sospeso),
@@ -753,6 +773,7 @@ app.get("/api/users", requireAuth, requireAdmin, async (req, res) => {
     role: u.role || (u.isAdmin ? 'Admin' : 'Editor'),
     canSchedule: u.canSchedule === true,
     twoFactorEnabled: u.twoFactorEnabled === true,
+    twoFactorRequired: u.twoFactorRequired !== false, // default: richiesto
   }));
   res.json(safeUsers);
 });
@@ -818,6 +839,34 @@ app.delete("/api/users/:username", requireAuth, requireAdmin, async (req, res) =
 
   if (users.length === initialLength) {
     return res.status(404).json({ error: "Utente non trovato" });
+  }
+
+  await writeUsers(users);
+  res.json({ ok: true });
+});
+
+// ── Attiva/disattiva il requisito 2FA per un singolo utente (solo Admin) ──
+// Se disattivato, l'utente accede subito con utente+password, senza OTP.
+// Se riattivato, al login successivo dovrà rifare il setup da zero (nuovo
+// QR): il vecchio segreto viene cancellato per evitare stati incoerenti
+// tra ciò che l'app Authenticator dell'utente ha memorizzato e quello che
+// il server si aspetta.
+app.put("/api/users/:username/2fa", requireAuth, requireAdmin, async (req, res) => {
+  const { username } = req.params;
+  const { enabled } = req.body;
+  if (typeof enabled !== "boolean") {
+    return res.status(400).json({ ok: false, error: "Campo 'enabled' booleano richiesto" });
+  }
+
+  const users = await readUsers();
+  const idx = users.findIndex((u: any) => u.username.toLowerCase() === username.toLowerCase());
+  if (idx === -1) return res.status(404).json({ ok: false, error: "Utente non trovato" });
+
+  if (enabled) {
+    // Riattivazione: richiede un nuovo setup da zero al prossimo login.
+    users[idx] = { ...users[idx], twoFactorRequired: true, twoFactorSecret: undefined, twoFactorEnabled: false };
+  } else {
+    users[idx] = { ...users[idx], twoFactorRequired: false };
   }
 
   await writeUsers(users);
