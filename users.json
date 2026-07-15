@@ -39,8 +39,8 @@
     "isAdmin": true,
     "email": "ebattaglia@gemgroupsrls.it",
     "telefono": "",
-    "twoFactorSecret": "XNSDELR7BTXXHFITU3P66FJDMJRVZQHU",
-    "twoFactorEnabled": false
+    "twoFactorEnabled": false,
+    "twoFactorRequired": true
   },
   {
     "username": "miranda",
