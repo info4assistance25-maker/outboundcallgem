@@ -24,6 +24,26 @@ const app = express();
 
 import { neon } from "@neondatabase/serverless";
 
+// ── Retry con backoff per errori transitori di rete (fetch failed, ECONNRESET,
+// socket chiuso, 502 da GitHub, ecc.) — sia verso Postgres (Neon) che verso
+// l'API GitHub. Senza questo, un singolo blip di rete (comune su funzioni
+// serverless "cold") fa fallire l'intera operazione anche se il servizio
+// remoto è perfettamente sano un istante dopo.
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseDelayMs = 250): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) {
+        await new Promise(r => setTimeout(r, baseDelayMs * Math.pow(2, i)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 // Inizializzazione "difensiva": se DATABASE_URL manca o non è valida, neon()
 // lancia subito un'eccezione. Senza il try/catch questo farebbe fallire il
 // caricamento dell'intero modulo, portando giù anche le rotte che non
@@ -64,7 +84,7 @@ async function readCallResults(limit = 50, offset = 0): Promise<{ rows: any[]; t
 
 async function upsertCallResult(entry: any) {
   try {
-    await sql`
+    await withRetry(() => sql`
       INSERT INTO call_results (call_id, numero, nome, risposto, durata, ts, trascrizione, riassunto)
       VALUES (${entry.callId}, ${entry.numero}, ${entry.nome || null}, ${entry.risposto}, ${entry.durata}, ${entry.timestamp}, ${entry.trascrizione}, ${entry.riassunto ? JSON.stringify(entry.riassunto) : null})
       ON CONFLICT (call_id) DO UPDATE SET
@@ -74,9 +94,9 @@ async function upsertCallResult(entry: any) {
         durata = COALESCE(EXCLUDED.durata, call_results.durata),
         trascrizione = COALESCE(EXCLUDED.trascrizione, call_results.trascrizione),
         riassunto = COALESCE(EXCLUDED.riassunto, call_results.riassunto)
-    `;
+    `);
   } catch (err) {
-    console.error("Error upserting call_results in Postgres:", err);
+    console.error("Error upserting call_results in Postgres (dopo retry):", err);
   }
 }
 
@@ -139,9 +159,9 @@ async function upsertContactName(numero: string, nome: string) {
 // Utile per debug senza dover rifrugare i log Vercel.
 async function logWebhookEvent(eventType: string, reason: string) {
   try {
-    await sql`INSERT INTO webhook_log (event_type, reason) VALUES (${eventType}, ${reason})`;
+    await withRetry(() => sql`INSERT INTO webhook_log (event_type, reason) VALUES (${eventType}, ${reason})`);
   } catch (err) {
-    console.error("Error writing webhook_log:", err);
+    console.error("Error writing webhook_log (dopo retry):", err);
   }
 }
 
@@ -408,17 +428,20 @@ async function readVoicebots() {
   const token = process.env.GITHUB_TOKEN;
   if (token) {
     try {
-      const getRes = await fetch(
-        `https://api.github.com/repos/${GITHUB_REPO}/contents/${VOICEBOTS_FILE_PATH}`,
-        { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
-      );
-      if (getRes.ok) {
-        const fileData = await getRes.json() as any;
-        const content = Buffer.from(fileData.content, "base64").toString("utf-8");
-        return JSON.parse(content);
-      }
-      console.error("GitHub GET voicebots error:", getRes.status);
-    } catch (err) { console.error("Error reading voicebots from GitHub:", err); }
+      const fileData = await withRetry(async () => {
+        const getRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_REPO}/contents/${VOICEBOTS_FILE_PATH}`,
+          { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
+        );
+        if (!getRes.ok) {
+          console.error("GitHub GET voicebots error:", getRes.status);
+          throw new Error(`GitHub GET voicebots failed with status ${getRes.status}`);
+        }
+        return getRes.json() as Promise<any>;
+      });
+      const content = Buffer.from(fileData.content, "base64").toString("utf-8");
+      return JSON.parse(content);
+    } catch (err) { console.error("Error reading voicebots from GitHub (dopo retry):", err); }
   }
   // Fallback: file locale (ambiente senza GITHUB_TOKEN, es. sviluppo locale)
   try {
@@ -434,34 +457,58 @@ async function writeVoicebots(bots: any[]) {
     return;
   }
   try {
-    const getRes = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/contents/${VOICEBOTS_FILE_PATH}`,
-      { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
-    );
-    const sha = getRes.ok ? (await getRes.json() as any).sha : undefined;
-    const content = Buffer.from(JSON.stringify(bots, null, 2)).toString("base64");
-    const putRes = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/contents/${VOICEBOTS_FILE_PATH}`,
-      {
-        method: "PUT",
-        headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "Content-Type": "application/json", "User-Agent": "gem-app" },
-        body: JSON.stringify({ message: "chore: update voicebots", content, ...(sha ? { sha } : {}) })
+    await withRetry(async () => {
+      const getRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_REPO}/contents/${VOICEBOTS_FILE_PATH}`,
+        { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
+      );
+      const sha = getRes.ok ? (await getRes.json() as any).sha : undefined;
+      const content = Buffer.from(JSON.stringify(bots, null, 2)).toString("base64");
+      const putRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_REPO}/contents/${VOICEBOTS_FILE_PATH}`,
+        {
+          method: "PUT",
+          headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "Content-Type": "application/json", "User-Agent": "gem-app" },
+          body: JSON.stringify({ message: "chore: update voicebots", content, ...(sha ? { sha } : {}) })
+        }
+      );
+      if (!putRes.ok) {
+        const errText = await putRes.text();
+        console.error("GitHub PUT voicebots error:", putRes.status, errText);
+        throw new Error("GitHub write failed");
       }
-    );
-    if (!putRes.ok) {
-      const errText = await putRes.text();
-      console.error("GitHub PUT voicebots error:", putRes.status, errText);
-      throw new Error("GitHub write failed");
-    }
-  } catch (err) { console.error("Error writing voicebots to GitHub:", err); throw err; }
+    });
+  } catch (err) { console.error("Error writing voicebots to GitHub (dopo retry):", err); throw err; }
 }
 
-function readUsers() {
+async function readUsers() {
+  const token = process.env.GITHUB_TOKEN;
+  if (token) {
+    try {
+      const fileData = await withRetry(async () => {
+        const getRes = await fetch(
+          `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
+          { headers: { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "gem-app" } }
+        );
+        if (!getRes.ok) {
+          console.error("GitHub GET users error:", getRes.status);
+          throw new Error(`GitHub GET users failed with status ${getRes.status}`);
+        }
+        return getRes.json() as Promise<any>;
+      });
+      const content = Buffer.from(fileData.content, "base64").toString("utf-8");
+      return JSON.parse(content);
+    } catch (err) {
+      console.error("Error reading users from GitHub (dopo retry), uso fallback locale:", err);
+    }
+  }
+  // Fallback: file locale bundlato nel deployment (può essere non aggiornato
+  // rispetto a GitHub se manca GITHUB_TOKEN o se GitHub non è raggiungibile)
   try {
     if (!fs.existsSync(USERS_FILE)) return [];
     return JSON.parse(fs.readFileSync(USERS_FILE, "utf-8"));
   } catch (err) {
-    console.error("Error reading users.json", err);
+    console.error("Error reading users.json locale:", err);
     return [];
   }
 }
@@ -518,13 +565,13 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ ok: false, error: "Username e password richiesti" });
   }
 
-  const users = readUsers();
+  const users = await readUsers();
   const user = users.find(
     (u: any) => u.username.toLowerCase() === username.toLowerCase() && u.password === password
   );
@@ -545,8 +592,8 @@ app.post("/api/login", (req, res) => {
   }
 });
 
-app.get("/api/users", (req, res) => {
-  const users = readUsers();
+app.get("/api/users", async (req, res) => {
+  const users = await readUsers();
   // Return users without passwords for safety, though it's internal logic
   const safeUsers = users.map((u: any) => ({ 
     username: u.username, 
@@ -565,7 +612,7 @@ app.post("/api/users", async (req, res) => {
     return res.status(400).json({ error: "Dati mancanti" });
   }
 
-  const users = readUsers();
+  const users = await readUsers();
   if (users.find((u: any) => u.username.toLowerCase() === username.toLowerCase())) {
     return res.status(400).json({ error: "Username già esistente" });
   }
@@ -584,7 +631,7 @@ app.put("/api/users/:username", async (req, res) => {
     return res.status(400).json({ error: "Dati mancanti" });
   }
 
-  let users = readUsers();
+  let users = await readUsers();
   const index = users.findIndex((u: any) => u.username.toLowerCase() === username.toLowerCase());
 
   if (index === -1) {
@@ -607,7 +654,7 @@ app.put("/api/users/:username", async (req, res) => {
 app.delete("/api/users/:username", async (req, res) => {
   const { username } = req.params;
   
-  let users = readUsers();
+  let users = await readUsers();
   const initialLength = users.length;
   users = users.filter((u: any) => u.username.toLowerCase() !== username.toLowerCase());
 
@@ -670,10 +717,10 @@ app.post("/api/support", async (req, res) => {
 });
 
 // ── PROFILO UTENTE ──
-app.get("/api/me", (req, res) => {
+app.get("/api/me", async (req, res) => {
   const { username } = req.query;
   if (!username) return res.status(400).json({ ok: false });
-  const users = readUsers();
+  const users = await readUsers();
   const user = users.find((u: any) => u.username.toLowerCase() === String(username).toLowerCase());
   if (!user) return res.status(404).json({ ok: false });
   res.json({ ok: true, email: user.email || '', telefono: user.telefono || '' });
@@ -682,7 +729,7 @@ app.get("/api/me", (req, res) => {
 app.put("/api/me", async (req, res) => {
   const { username, email, telefono } = req.body;
   if (!username) return res.status(400).json({ ok: false, error: 'Username richiesto' });
-  const users = readUsers();
+  const users = await readUsers();
   const idx = users.findIndex((u: any) => u.username.toLowerCase() === username.toLowerCase());
   if (idx === -1) return res.status(404).json({ ok: false, error: 'Utente non trovato' });
   users[idx].email = email || '';
