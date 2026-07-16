@@ -53,7 +53,7 @@
   },
   {
     "username": "giovanni",
-    "password": "Torino.1",
+    "password": "$2a$12$PMj7rLGwaeunVw698shcTeTiFcZRLxQWsmjy7XiRX1I4Cp1cMp9oy",
     "nome": "Giovanni",
     "canSchedule": true,
     "role": "Admin",
