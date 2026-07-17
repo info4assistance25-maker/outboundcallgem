@@ -45,7 +45,7 @@
   },
   {
     "username": "miranda",
-    "password": "Torino.1",
+    "password": "$2a$12$up20os1J2LNBjoURcXa5..TGfDu6b1OuVVx5SVGrZZ0eBya3muHY.",
     "nome": "Miranda",
     "canSchedule": true,
     "role": "Admin",
