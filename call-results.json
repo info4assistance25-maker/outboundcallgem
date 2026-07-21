@@ -1,0 +1,86 @@
+[
+  {
+    "callId": "ee_ee000165_1782916783.631",
+    "numero": "default",
+    "risposto": true,
+    "durata": 29525,
+    "timestamp": "2026-07-01T14:40:20.013Z",
+    "trascrizione": null,
+    "riassunto": {
+      "titolo": "Chiamata informativa breve con rifiuto cliente",
+      "testo": "L'agente ha spiegato brevemente i servizi offerti. Il cliente ha risposto di non essere interessato e ha terminato la chiamata rapidamente.",
+      "argomenti": [],
+      "decisioni": [],
+      "problemi": []
+    }
+  },
+  {
+    "callId": "ee_ee000165_1782916728.628",
+    "numero": "GGw5kFCQV9JX",
+    "risposto": true,
+    "durata": 42938,
+    "timestamp": "2026-07-01T14:39:46.631Z",
+    "trascrizione": null,
+    "riassunto": {
+      "titolo": "Conferma appuntamento test con assistente vocale",
+      "testo": "L'assistente vocale di Cossinia Medica ha chiamato per confermare un appuntamento per un test il 8 luglio. Samuele Galli ha confermato l'appuntamento dopo una breve interazione. La chiamata si è conclusa con i ringraziamenti dell'assistente e gli auguri di buona giornata.",
+      "argomenti": [
+        "Promemoria appuntamento con assistente vocale",
+        "Conferma appuntamento test per il 08 luglio",
+        "Interazione breve e informale tra assistente e cliente"
+      ],
+      "decisioni": [
+        "Conferma definitiva dell'appuntamento per il test il 08 luglio alle ore 12:12."
+      ],
+      "problemi": []
+    }
+  },
+  {
+    "callId": "ee_ee000165_1782915169.596",
+    "numero": "default",
+    "risposto": true,
+    "durata": 9945,
+    "timestamp": "2026-07-01T14:13:06.796Z",
+    "trascrizione": null
+  },
+  {
+    "callId": "ee_ee000165_1782913548.571",
+    "numero": "GGw5kFCQV9JX",
+    "risposto": true,
+    "durata": 33781,
+    "timestamp": "2026-07-01T13:46:37.016Z",
+    "trascrizione": null
+  },
+  {
+    "callId": "ee_ee000165_1782913433.567",
+    "numero": "+393391422275",
+    "risposto": false,
+    "durata": 0,
+    "timestamp": "2026-07-01T13:43:57.974Z",
+    "trascrizione": null
+  },
+  {
+    "callId": "ee_ee000165_1782913258.565",
+    "numero": "+39335406367",
+    "risposto": true,
+    "durata": 14413,
+    "timestamp": "2026-07-01T13:41:55.451Z",
+    "trascrizione": null
+  },
+  {
+    "callId": "ee_ee000165_1782913123.563",
+    "numero": "+393351217959",
+    "risposto": true,
+    "durata": 39970,
+    "timestamp": "2026-07-01T13:39:41.709Z",
+    "trascrizione": null
+  },
+  {
+    "callId": "ee_ee000165_1782913076.561",
+    "numero": "+393351217957",
+    "risposto": false,
+    "durata": 0,
+    "timestamp": "2026-07-01T13:38:25.355Z",
+    "trascrizione": null
+  }
+]
