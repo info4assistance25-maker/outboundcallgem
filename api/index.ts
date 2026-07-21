@@ -1083,11 +1083,31 @@ app.get("/api/access-logs", requireAuth, requireAdmin, async (_req, res) => {
 });
 
 // ── NOTIFICA EMAIL COMPLETAMENTO CAMPAGNA ──
+// Escape dei valori inseriti nell'HTML dell'email, per evitare HTML injection
+// (i campi arrivano dall'utente: operatore, note...).
+function escapeHtml(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 app.post("/api/notify-campaign", async (req, res) => {
-  const { operatore, count, scheduledAt, note } = req.body;
-  if (!process.env.SMTP_USER || !process.env.NOTIFY_EMAIL) {
-    return res.status(200).json({ ok: false, reason: 'NOTIFY_EMAIL non configurata' });
+  const { operatore, count, scheduledAt, note, userEmail } = req.body;
+  if (!process.env.SMTP_USER) {
+    return res.status(200).json({ ok: false, reason: 'SMTP non configurato' });
   }
+
+  // Destinatario: l'email dell'utente che ha lanciato la campagna.
+  // Fallback a NOTIFY_EMAIL se l'utente non ha un'email a profilo.
+  const isValidEmail = typeof userEmail === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail);
+  const to = isValidEmail ? userEmail : process.env.NOTIFY_EMAIL;
+  if (!to) {
+    return res.status(200).json({ ok: false, reason: 'Nessun destinatario: utente senza email e NOTIFY_EMAIL non configurata' });
+  }
+
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT || '587'),
@@ -1095,18 +1115,25 @@ app.post("/api/notify-campaign", async (req, res) => {
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   });
   const ora = new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
+  const pianificata = scheduledAt && new Date(scheduledAt).getTime() > Date.now();
+  const titolo = pianificata ? 'Campagna pianificata' : 'Campagna avviata';
   try {
     await transporter.sendMail({
       from: `"GEM Campagne Out" <${process.env.SMTP_USER}>`,
-      to: process.env.NOTIFY_EMAIL,
-      subject: `✅ Campagna completata — ${count} chiamate (${operatore})`,
+      to,
+      subject: `📞 ${titolo} — ${escapeHtml(count)} contatti`,
       html: `
-        <h2>Campagna completata</h2>
-        <p><strong>Operatore:</strong> ${operatore}</p>
-        <p><strong>Chiamate inviate:</strong> ${count}</p>
-        <p><strong>Completata alle:</strong> ${ora}</p>
-        ${note ? `<p><strong>Note:</strong> ${note}</p>` : ''}
-        ${scheduledAt ? `<p><strong>Era pianificata per:</strong> ${new Date(scheduledAt).toLocaleString('it-IT')}</p>` : ''}
+        <h2>${titolo}</h2>
+        <p>Ciao ${escapeHtml(operatore)}, ecco il riepilogo della campagna che hai lanciato.</p>
+        <table style="border-collapse:collapse;font-family:sans-serif;font-size:14px">
+          <tr><td style="padding:4px 12px 4px 0"><strong>Contatti in campagna</strong></td><td>${escapeHtml(count)}</td></tr>
+          <tr><td style="padding:4px 12px 4px 0"><strong>Operatore</strong></td><td>${escapeHtml(operatore)}</td></tr>
+          <tr><td style="padding:4px 12px 4px 0"><strong>${pianificata ? 'Pianificata per' : 'Avviata alle'}</strong></td><td>${pianificata ? escapeHtml(new Date(scheduledAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })) : ora}</td></tr>
+          ${note ? `<tr><td style="padding:4px 12px 4px 0"><strong>Note</strong></td><td>${escapeHtml(note)}</td></tr>` : ''}
+        </table>
+        <p style="color:#667;font-size:13px;margin-top:16px">
+          Gli esiti delle singole chiamate (risposte, trascrizioni, follow-up) sono consultabili nella dashboard di GEM Outbound man mano che arrivano.
+        </p>
       `,
     });
     res.json({ ok: true });
