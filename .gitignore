@@ -1,0 +1,15 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Dati usati come "database" via API GitHub — non devono essere versionati
+# nella storia pubblica. Restano nel repo solo se strettamente necessari al
+# fallback locale; in tal caso il repo DEVE essere privato.
+access-logs.json
+server.cjs
+call-results.json

@@ -73,9 +73,18 @@ interface SessionPayload {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const IS_PRODUCTION = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
 if (!JWT_SECRET) {
+  // In produzione un JWT firmato con un segreto noto/pubblico permetterebbe a
+  // chiunque di forgiare una sessione admin. Meglio interrompere l'avvio con un
+  // errore esplicito che degradare silenziosamente a un segreto insicuro.
+  if (IS_PRODUCTION) {
+    throw new Error(
+      "JWT_SECRET non configurato in produzione. Imposta la variabile d'ambiente JWT_SECRET su Vercel prima del deploy."
+    );
+  }
   console.error(
-    "JWT_SECRET non configurato — uso un segreto di fallback INSICURO. Imposta JWT_SECRET nelle variabili d'ambiente Vercel al più presto."
+    "JWT_SECRET non configurato — uso un segreto di fallback INSICURO (consentito solo in sviluppo locale)."
   );
 }
 const SESSION_SECRET = JWT_SECRET || "dev-only-insecure-secret-do-not-use-in-production";
@@ -261,7 +270,7 @@ async function createFollowup(entry: { callId: string; numero: string | null; no
   }
 }
 
-app.get("/api/followups", async (req, res) => {
+app.get("/api/followups", requireAuth, async (req, res) => {
   const stato = (req.query.stato as string) || "pending";
   try {
     const rows = await sql`
@@ -274,7 +283,7 @@ app.get("/api/followups", async (req, res) => {
   }
 });
 
-app.post("/api/followups/:id/done", express.json(), async (req, res) => {
+app.post("/api/followups/:id/done", requireAuth, express.json(), async (req, res) => {
   try {
     await sql`UPDATE followups SET stato = 'done' WHERE id = ${parseInt(req.params.id)}`;
     res.json({ ok: true });
@@ -285,7 +294,7 @@ app.post("/api/followups/:id/done", express.json(), async (req, res) => {
 });
 
 // ── Statistiche aggregate sui risultati del voicebot ──
-app.get("/api/voicebot-stats", async (_req, res) => {
+app.get("/api/voicebot-stats", requireAuth, async (_req, res) => {
   try {
     const totals = await sql`
       SELECT
@@ -312,7 +321,7 @@ app.get("/api/voicebot-stats", async (_req, res) => {
 // Endpoint chiamato dal frontend al lancio di una campagna, per registrare
 // l'associazione numero → nome contatto (serve ad arricchire i risultati
 // del voicebot, dato che il webhook Wildix restituisce solo il numero).
-app.post("/api/register-campaign-contacts", express.json(), async (req, res) => {
+app.post("/api/register-campaign-contacts", requireAuth, express.json(), async (req, res) => {
   const { contacts } = req.body as { contacts: { numero: string; nome: string }[] };
   if (!Array.isArray(contacts)) {
     return res.status(400).json({ ok: false, error: "contacts deve essere un array" });
@@ -489,7 +498,7 @@ app.post(
   }
 );
 
-app.get("/api/call-results", async (req, res) => {
+app.get("/api/call-results", requireAuth, async (req, res) => {
   const limit = Math.min(parseInt((req.query.limit as string) || "50"), 200);
   const offset = parseInt((req.query.offset as string) || "0");
   const { rows, total } = await readCallResults(limit, offset);
@@ -678,7 +687,7 @@ app.post("/api/login", async (req, res) => {
   // solo utente+password, come prima dell'introduzione del 2FA. ──
   if (!isTwoFactorRequired(user)) {
     const role = user.role || (user.isAdmin ? "Admin" : "Editor");
-    const isAdmin = user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === "Admin";
+    const isAdmin = user.isAdmin === true || user.role === "Admin";
     const token = issueSessionToken({ username: user.username, isAdmin });
     return res.json({
       ok: true,
@@ -761,7 +770,7 @@ app.post("/api/verify-otp", async (req, res) => {
   }
 
   const role = user.role || (user.isAdmin ? "Admin" : "Editor");
-  const isAdmin = user.username.toLowerCase() === "admin" || user.isAdmin === true || user.role === "Admin";
+  const isAdmin = user.isAdmin === true || user.role === "Admin";
   const token = issueSessionToken({ username: user.username, isAdmin });
 
   res.json({
@@ -837,7 +846,7 @@ app.put("/api/users/:username", requireAuth, requireAdmin, async (req, res) => {
     password: newPassword, 
     nome, 
     role, 
-    isAdmin: role === 'Admin' || users[index].username.toLowerCase() === 'admin',
+    isAdmin: role === 'Admin',
     canSchedule: canSchedule === true
   };
   await writeUsers(users);
@@ -1033,26 +1042,44 @@ app.delete("/api/voicebots/:id", requireAuth, requireAdmin, async (req, res) => 
 });
 
 // ── ACCESS LOGS ──
-const LOGS_PATH = path.join(process.cwd(), 'access-logs.json');
-
-function readLogs(): any[] {
-  try { return JSON.parse(fs.readFileSync(LOGS_PATH, 'utf8')); } catch { return []; }
-}
-function writeLogs(logs: any[]) {
-  try { fs.writeFileSync(LOGS_PATH, JSON.stringify(logs.slice(0, 200), null, 2)); } catch {}
-}
-
-app.post("/api/access-log", (req, res) => {
+// Persistiti su Postgres (Neon): su serverless il filesystem è effimero e
+// read-only fuori da /tmp, quindi la vecchia scrittura su access-logs.json
+// perdeva i log a ogni cold start (o falliva del tutto in produzione).
+// Lo schema atteso:
+//   CREATE TABLE access_logs (
+//     id SERIAL PRIMARY KEY,
+//     ts TIMESTAMPTZ NOT NULL DEFAULT now(),
+//     username TEXT NOT NULL,
+//     nome TEXT,
+//     action TEXT NOT NULL
+//   );
+app.post("/api/access-log", async (req, res) => {
   const { username, nome, action } = req.body;
   if (!username || !action) return res.status(400).json({ ok: false });
-  const logs = readLogs();
-  logs.unshift({ ts: new Date().toISOString(), username, nome: nome || username, action });
-  writeLogs(logs);
-  res.json({ ok: true });
+  try {
+    await withRetry(() => sql`
+      INSERT INTO access_logs (username, nome, action)
+      VALUES (${username}, ${nome || username}, ${action})
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    // Non bloccante: un log di accesso mancato non deve impedire login/logout.
+    console.error("Error writing access_logs:", err);
+    res.json({ ok: true });
+  }
 });
 
-app.get("/api/access-logs", (req, res) => {
-  res.json({ logs: readLogs() });
+app.get("/api/access-logs", requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const logs = await sql`
+      SELECT to_char(ts, 'YYYY-MM-DD"T"HH24:MI:SS.MSOF') AS ts, username, nome, action
+      FROM access_logs ORDER BY ts DESC LIMIT 200
+    `;
+    res.json({ logs });
+  } catch (err) {
+    console.error("Error reading access_logs:", err);
+    res.json({ logs: [] });
+  }
 });
 
 // ── NOTIFICA EMAIL COMPLETAMENTO CAMPAGNA ──
