@@ -34,9 +34,10 @@ export function Login() {
       setQrUrl(res.qrUrl);
       setError('');
     } else if (res && res.ok) {
-      const loggedUser = { username: res.username, nome: res.nome, role: res.role, isAdmin: res.isAdmin, canSchedule: res.canSchedule, email: res.email || '', telefono: res.telefono || '' };
+      const loggedUser = { username: res.username, nome: res.nome, role: res.role, isAdmin: res.isAdmin, canSchedule: res.canSchedule, email: res.email || '', telefono: res.telefono || '', twoFactorEnabled: res.twoFactorEnabled, twoFactorRequired: res.twoFactorRequired };
       setUser(loggedUser);
       sessionStorage.setItem('gem_session', JSON.stringify(loggedUser));
+      if (res.token) sessionStorage.setItem('gem_token', res.token);
     } else {
       setError(res?.error || 'Credenziali non valide');
     }

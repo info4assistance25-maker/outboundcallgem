@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useCampaign } from '../context/CampaignContext';
-import { Users, Trash2, Plus, Loader2, Edit2, X, Save } from 'lucide-react';
+import { Users, Trash2, Plus, Loader2, Edit2, X, Save, ShieldCheck, ShieldOff } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ConfirmModal } from './ConfirmModal';
 import { SkeletonUserRow, EmptyState } from './Skeleton';
+import { authFetch } from '../lib/authFetch';
 
 interface EditingState {
   username: string;
   nome: string;
-  password?: string;
+  password?: string; // vuoto = non cambiare la password esistente
   role: string;
   canSchedule: boolean;
 }
@@ -33,7 +34,7 @@ export function AdminUsers() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/users');
+      const res = await authFetch('/api/users');
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
@@ -54,7 +55,7 @@ export function AdminUsers() {
   const handleDelete = async (username: string) => {
     setConfirmDeleteUser(null);
     try {
-      const res = await fetch(`/api/users/${username}`, { method: 'DELETE' });
+      const res = await authFetch(`/api/users/${username}`, { method: 'DELETE' });
       if (res.ok) {
         fetchUsers();
       } else {
@@ -67,11 +68,33 @@ export function AdminUsers() {
     }
   };
 
+  const handleToggle2FA = async (username: string, currentlyRequired: boolean) => {
+    const nextEnabled = !currentlyRequired;
+    // Aggiornamento ottimistico
+    setUsers(prev => prev.map(u => u.username === username ? { ...u, twoFactorRequired: nextEnabled, twoFactorEnabled: nextEnabled ? false : u.twoFactorEnabled } : u));
+    try {
+      const res = await authFetch(`/api/users/${username}/2fa`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: nextEnabled })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Errore durante la modifica del 2FA');
+        fetchUsers(); // rollback
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Errore di rete');
+      fetchUsers(); // rollback
+    }
+  };
+
   const handleEditStart = (u: any) => {
     setEditingUser({
       username: u.username,
       nome: u.nome,
-      password: u.password, // Only if returned by API, otherwise keep blank
+      password: '', // vuoto = mantieni la password esistente
       role: u.role || (u.isAdmin ? 'Admin' : 'Editor'),
       canSchedule: u.canSchedule === true
     });
@@ -84,18 +107,18 @@ export function AdminUsers() {
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-    if (!editingUser.nome || !editingUser.password || !editingUser.role) {
+    if (!editingUser.nome || !editingUser.role) {
        alert("Compila tutti i campi");
        return;
     }
 
     try {
-      const res = await fetch(`/api/users/${editingUser.username}`, {
+      const res = await authFetch(`/api/users/${editingUser.username}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: editingUser.nome,
-          password: editingUser.password,
+          password: editingUser.password || undefined, // vuoto = non cambiare
           role: editingUser.role,
           canSchedule: editingUser.canSchedule
         })
@@ -125,7 +148,7 @@ export function AdminUsers() {
     setIsAdding(true);
     
     try {
-      const res = await fetch('/api/users', {
+      const res = await authFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -189,10 +212,10 @@ export function AdminUsers() {
             </div>
           ) : (
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-              <div className="grid grid-cols-[2fr_2fr_2fr_2fr_1fr_auto] bg-slate-50 dark:bg-slate-800/80 p-3 border-b border-slate-200 dark:border-slate-700 gap-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <div className="grid grid-cols-[2fr_2fr_1.4fr_2fr_1fr_auto] bg-slate-50 dark:bg-slate-800/80 p-3 border-b border-slate-200 dark:border-slate-700 gap-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
                 <span>Nome</span>
                 <span>Username</span>
-                <span>Password</span>
+                <span>2FA</span>
                 <span>Ruolo</span>
                 <span className="text-center" title="Schedulazione Campagna">Sched.</span>
                 <span></span>
@@ -209,47 +232,84 @@ export function AdminUsers() {
                   
                   if (isEditing) {
                     return (
-                      <div key={u.username} className="bg-brand-50 dark:bg-brand-900/10 border-b border-brand-100 dark:border-brand-800 p-3 last:border-0">
-                        <form onSubmit={handleEditSave} className="grid grid-cols-[2fr_2fr_2fr_2fr_1fr_auto] gap-3 items-center text-sm">
-                          <input 
-                            type="text" 
-                            required
-                            value={editingUser.nome}
-                            onChange={e => setEditingUser({...editingUser, nome: e.target.value})}
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
-                          />
-                          <span className="text-slate-500 truncate" title={u.username}>{u.username}</span>
-                          <input 
-                            type="text" 
-                            required
-                            value={editingUser.password}
-                            onChange={e => setEditingUser({...editingUser, password: e.target.value})}
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
-                          />
-                          <select 
-                            value={editingUser.role}
-                            onChange={e => setEditingUser({...editingUser, role: e.target.value})}
-                            className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
-                          >
-                            <option value="Admin">Admin</option>
-                            <option value="Editor">Editor</option>
-                            <option value="Viewer">Viewer</option>
-                          </select>
-                          <div className="flex justify-center">
-                            <input 
-                              type="checkbox" 
-                              checked={editingUser.canSchedule}
-                              onChange={e => setEditingUser({...editingUser, canSchedule: e.target.checked})}
-                              className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
-                            />
+                      <div key={u.username} className="bg-brand-50 dark:bg-brand-900/10 border-b border-brand-100 dark:border-brand-800 p-4 last:border-0">
+                        <form onSubmit={handleEditSave} className="space-y-3">
+                          {/* Nome + Username */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nome</label>
+                              <input 
+                                type="text" 
+                                required
+                                value={editingUser.nome}
+                                onChange={e => setEditingUser({...editingUser, nome: e.target.value})}
+                                className="w-full px-2.5 py-1.5 text-sm bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Username</label>
+                              <div className="px-2.5 py-1.5 text-sm text-slate-500 truncate">{u.username}</div>
+                            </div>
                           </div>
-                          <div className="flex justify-end gap-1">
-                            <button type="submit" className="w-8 h-8 flex items-center justify-center text-green-600 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-lg transition-colors">
-                              <Save className="w-4 h-4" />
-                            </button>
-                            <button type="button" onClick={handleEditCancel} className="w-8 h-8 flex items-center justify-center text-slate-500 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                              <X className="w-4 h-4" />
-                            </button>
+
+                          {/* Ruolo + Nuova password */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Ruolo</label>
+                              <select 
+                                value={editingUser.role}
+                                onChange={e => setEditingUser({...editingUser, role: e.target.value})}
+                                className="w-full px-2.5 py-1.5 text-sm bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
+                              >
+                                <option value="Admin">Admin</option>
+                                <option value="Editor">Editor</option>
+                                <option value="Viewer">Viewer</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nuova password</label>
+                              <input 
+                                type="text" 
+                                placeholder="lascia vuoto per non cambiare"
+                                title="Lascia vuoto per non cambiare la password"
+                                value={editingUser.password}
+                                onChange={e => setEditingUser({...editingUser, password: e.target.value})}
+                                className="w-full px-2.5 py-1.5 text-sm bg-white dark:bg-slate-900 border border-brand-300 dark:border-brand-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500 placeholder:text-slate-400 placeholder:italic placeholder:text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          {/* 2FA (sola lettura qui: si gestisce dalla riga normale) + Sched + azioni */}
+                          <div className="flex items-center justify-between gap-3 pt-1">
+                            <div className="flex items-center gap-4">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                                {u.twoFactorRequired === false ? (
+                                  <ShieldOff className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                                ) : u.twoFactorEnabled ? (
+                                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <ShieldCheck className="w-4 h-4 text-amber-500" />
+                                )}
+                                2FA: {u.twoFactorRequired === false ? 'disattivato' : u.twoFactorEnabled ? 'attivo' : 'da configurare'}
+                              </span>
+                              <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer">
+                                <input 
+                                  type="checkbox" 
+                                  checked={editingUser.canSchedule}
+                                  onChange={e => setEditingUser({...editingUser, canSchedule: e.target.checked})}
+                                  className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
+                                />
+                                Schedulazione
+                              </label>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button type="submit" className="w-8 h-8 flex items-center justify-center text-green-600 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-lg transition-colors">
+                                <Save className="w-4 h-4" />
+                              </button>
+                              <button type="button" onClick={handleEditCancel} className="w-8 h-8 flex items-center justify-center text-slate-500 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         </form>
                       </div>
@@ -259,10 +319,34 @@ export function AdminUsers() {
                   const hasSchedule = u.canSchedule === true;
 
                   return (
-                    <div key={u.username} className="grid grid-cols-[2fr_2fr_2fr_2fr_1fr_auto] gap-3 p-3 items-center border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
+                    <div key={u.username} className="grid grid-cols-[2fr_2fr_1.4fr_2fr_1fr_auto] gap-3 p-3 items-center border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
                       <span className="font-medium text-slate-900 dark:text-slate-200 truncate" title={u.nome}>{u.nome}</span>
                       <span className="text-slate-500 truncate" title={u.username}>{u.username}</span>
-                      <span className="text-slate-400 font-mono truncate" title={u.password}>{u.password}</span>
+                      <button
+                        onClick={() => handleToggle2FA(u.username, u.twoFactorRequired !== false)}
+                        title={
+                          u.twoFactorRequired === false
+                            ? 'Clicca per RICHIEDERE il 2FA a questo utente (dovrà rifare il setup)'
+                            : u.twoFactorEnabled
+                              ? 'Clicca per DISATTIVARE il 2FA (l\'utente accederà con solo utente/password)'
+                              : '2FA richiesto ma non ancora configurato dall\'utente — clicca per disattivarlo'
+                        }
+                        className={cn(
+                          "inline-flex items-center gap-1.5 w-fit px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-colors cursor-pointer",
+                          u.twoFactorRequired === false
+                            ? "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                            : u.twoFactorEnabled
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800"
+                              : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800"
+                        )}
+                      >
+                        {u.twoFactorRequired === false ? (
+                          <ShieldOff className="w-3.5 h-3.5" />
+                        ) : (
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                        )}
+                        {u.twoFactorRequired === false ? 'Off' : u.twoFactorEnabled ? 'On' : 'Da fare'}
+                      </button>
                       <span className={cn(
                         "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit",
                         u.role === 'Admin' || u.isAdmin ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" :

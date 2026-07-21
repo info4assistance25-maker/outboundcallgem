@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { isValidPhoneNumber } from '../lib/utils';
+import { isValidPhoneNumber, normalizePhoneNumber } from '../lib/utils';
+import { authFetch } from '../lib/authFetch';
 import * as XLSX from 'xlsx';
 
 export interface Voicebot {
@@ -19,6 +20,8 @@ export interface User {
   canSchedule?: boolean;
   email?: string;
   telefono?: string;
+  twoFactorEnabled?: boolean;
+  twoFactorRequired?: boolean;
 }
 
 export interface Contact {
@@ -63,6 +66,7 @@ interface CampaignContextType {
   user: User | null;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   updateProfile: (email: string, telefono: string) => Promise<{ ok: boolean; error?: string }>;
+  enable2FA: () => Promise<{ ok: boolean; error?: string }>;
   login: (u: string, p: string) => Promise<any>;
   verifyOtp: (u: string, otp: string) => Promise<any>;
   logout: () => void;
@@ -104,8 +108,8 @@ interface CampaignContextType {
   businessHoursConfig: { days: number[]; startHour: number; endHour: number };
   setBusinessHoursConfig: (c: { days: number[]; startHour: number; endHour: number }) => void;
 
-  historyFilter: { operator: string; dateFrom: string; dateTo: string };
-  setHistoryFilter: (f: { operator: string; dateFrom: string; dateTo: string }) => void;
+  historyFilter: { operator: string; dateFrom: string; dateTo: string; search: string };
+  setHistoryFilter: React.Dispatch<React.SetStateAction<{ operator: string; dateFrom: string; dateTo: string; search: string }>>;
   filteredHistory: HistoryItem[];
   exportHistoryToXLSX: () => void;
   
@@ -141,7 +145,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [selectedVoicebot, setSelectedVoicebot] = useState<Voicebot | null>(null);
   const [businessHoursEnabled, setBusinessHoursEnabled] = useState(false);
   const [businessHoursConfig, setBusinessHoursConfig] = useState({ days: [1,2,3,4,5], startHour: 9, endHour: 19 });
-  const [historyFilter, setHistoryFilter] = useState({ operator: '', dateFrom: '', dateTo: '' });
+  const [historyFilter, setHistoryFilter] = useState({ operator: '', dateFrom: '', dateTo: '', search: '' });
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [lists, setLists] = useState<ContactList[]>([]);
   const [darkMode, setDarkMode] = useState(false);
@@ -149,7 +153,26 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   // Load persistence
   useEffect(() => {
     const s = sessionStorage.getItem('gem_session');
-    if (s) setUser(JSON.parse(s));
+    if (s) {
+      const cachedUser = JSON.parse(s);
+      setUser(cachedUser);
+      // Il campo twoFactorEnabled/Required potrebbe essere non aggiornato se
+      // la sessione salvata risale a un login precedente all'introduzione
+      // di questi campi (o se un Admin ha cambiato l'impostazione altrove).
+      // Lo aggiorniamo sempre da una fonte fresca, invece di fidarci solo
+      // della cache — altrimenti il banner "2FA non attivo" può comparire
+      // per errore anche quando è già stato attivato.
+      authFetch(`/api/me?username=${encodeURIComponent(cachedUser.username)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.ok) {
+            const updated = { ...cachedUser, twoFactorEnabled: data.twoFactorEnabled, twoFactorRequired: data.twoFactorRequired, email: data.email, telefono: data.telefono };
+            setUser(updated);
+            sessionStorage.setItem('gem_session', JSON.stringify(updated));
+          }
+        })
+        .catch(() => {});
+    }
 
     const h = localStorage.getItem('gem_history');
     if (h) setHistory(JSON.parse(h));
@@ -190,9 +213,10 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       
       if (res.ok && data.ok) {
-        const loggedUser = { username: data.username, nome: data.nome, role: data.role, isAdmin: data.isAdmin, canSchedule: data.canSchedule };
+        const loggedUser = { username: data.username, nome: data.nome, role: data.role, isAdmin: data.isAdmin, canSchedule: data.canSchedule, email: data.email || '', telefono: data.telefono || '', twoFactorEnabled: data.twoFactorEnabled, twoFactorRequired: data.twoFactorRequired };
         setUser(loggedUser);
         sessionStorage.setItem('gem_session', JSON.stringify(loggedUser));
+        if (data.token) sessionStorage.setItem('gem_token', data.token);
         fetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: data.username, nome: data.nome, action: 'login' }) }).catch(() => {});
         return { ok: true };
       }
@@ -205,7 +229,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   const updateProfile = async (email: string, telefono: string) => {
     try {
-      const res = await fetch('/api/me', {
+      const res = await authFetch('/api/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: user?.username, email, telefono })
@@ -224,7 +248,30 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     if (user) fetch('/api/access-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user.username, nome: user.nome, action: 'logout' }) }).catch(() => {});
     sessionStorage.removeItem('gem_session');
+    sessionStorage.removeItem('gem_token');
     setUser(null);
+  };
+
+  // Attiva il 2FA per l'utente corrente (self-service, non serve essere Admin).
+  // Dopo l'attivazione serve rifare il login per completare il setup con un
+  // nuovo QR code, quindi effettuiamo subito il logout.
+  const enable2FA = async () => {
+    if (!user) return { ok: false, error: 'Utente non loggato' };
+    try {
+      const res = await authFetch(`/api/users/${user.username}/2fa`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: true })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        logout();
+        return { ok: true };
+      }
+      return { ok: false, error: data.error };
+    } catch {
+      return { ok: false, error: 'Errore di rete' };
+    }
   };
 
   const toggleTheme = () => {
@@ -237,12 +284,12 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const evaluateContacts = (raw: Contact[]) => {
     const seen = new Set();
     return raw.map(c => {
-      const numStr = String(c.numero || '');
+      const numStr = normalizePhoneNumber(String(c.numero || ''));
       const k = numStr.replace(/\s/g, '');
       const inv = !isValidPhoneNumber(numStr);
       const dup = Boolean(k && seen.has(k));
       if (!dup && k) seen.add(k);
-      return { ...c, inv, dup };
+      return { ...c, numero: numStr, inv, dup };
     });
   };
 
@@ -327,23 +374,55 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     if (historyFilter.operator && !h.opt.toLowerCase().includes(historyFilter.operator.toLowerCase())) return false;
     if (historyFilter.dateFrom && new Date(h.ts) < new Date(historyFilter.dateFrom)) return false;
     if (historyFilter.dateTo && new Date(h.ts) > new Date(historyFilter.dateTo + 'T23:59:59')) return false;
+    if (historyFilter.search) {
+      const s = historyFilter.search.toLowerCase();
+      const matchOp = h.opt?.toLowerCase().includes(s);
+      const matchNote = h.note?.toLowerCase().includes(s);
+      const matchContacts = h.contactsList?.some(c => c.nome?.toLowerCase().includes(s) || c.numero?.includes(s));
+      if (!matchOp && !matchNote && !matchContacts) return false;
+    }
     return true;
   });
 
-  // Export history to XLSX
+  // Export history to XLSX — foglio riepilogo + un foglio per campagna
   const exportHistoryToXLSX = () => {
-    const rows = filteredHistory.map(h => ({
+    const wb = XLSX.utils.book_new();
+
+    // Foglio 1: Riepilogo campagne
+    const rows = filteredHistory.map((h, i) => ({
+      '#': i + 1,
       Data: new Date(h.ts).toLocaleString('it-IT'),
       Operatore: h.opt,
       Chiamate: h.count,
       Simultanee: h.chunkSize,
+      'Durata stimata (min)': Math.ceil((h.count / h.chunkSize) * 45 / 60),
       Modalità: h.scheduledAt ? 'Pianificata' : 'Immediata',
       'Ora Pianificata': h.scheduledAt ? new Date(h.scheduledAt).toLocaleString('it-IT') : '-',
       Note: h.note || '-',
+      Contatti: h.contactsList?.length || h.count,
     }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Storico');
+    const wsSummary = XLSX.utils.json_to_sheet(rows);
+    wsSummary['!cols'] = [
+      {wch:4},{wch:20},{wch:16},{wch:10},{wch:12},{wch:18},{wch:12},{wch:20},{wch:24},{wch:10}
+    ];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Riepilogo');
+
+    // Foglio 2+: Un foglio per ogni campagna con i contatti
+    filteredHistory.forEach((h, i) => {
+      if (!h.contactsList || h.contactsList.length === 0) return;
+      const label = `${String(i+1).padStart(2,'0')}_${new Date(h.ts).toLocaleDateString('it-IT').replace(/\//g,'-')}`;
+      const rows = h.contactsList.map(c => ({
+        Nome: c.nome,
+        Numero: c.numero,
+        ...(c.data_appuntamento ? { 'Data Appuntamento': c.data_appuntamento } : {}),
+        ...(c.ora_appuntamento ? { 'Ora Appuntamento': c.ora_appuntamento } : {}),
+        ...(c.prestazione ? { Prestazione: c.prestazione } : {}),
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{wch:20},{wch:18},{wch:18},{wch:16},{wch:22}];
+      XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 31));
+    });
+
     XLSX.writeFile(wb, `Storico_Campagne_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.xlsx`);
   };
 
@@ -440,6 +519,12 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
         setCampaignNote('');
         // Notifica email completamento (fire and forget)
         fetch('/api/notify-campaign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operatore: user?.nome, count: validContacts.length, scheduledAt: targetAt, note: campaignNote || undefined }) }).catch(() => {});
+        // Registra numero → nome, per mostrare il nome reale del contatto negli Esiti Voicebot
+        fetch('/api/register-campaign-contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contacts: validContacts.map(c => ({ numero: c.numero, nome: c.nome })) }),
+        }).catch(() => {});
       } else {
         setLaunchStatus({ type: 'err', msg: `${okCount}/${chunks.length} blocchi inviati correttamente${SUPPORT_HINT}` });
       }
@@ -452,7 +537,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <CampaignContext.Provider value={{
-      user, setUser, login, verifyOtp, logout, updateProfile,
+      user, setUser, login, verifyOtp, logout, updateProfile, enable2FA,
       contacts, setContacts, updateManualContacts, validContacts, invalidCount, duplicateCount,
       uploadMode, setUploadMode,
       scheduleMode, setScheduleMode, scheduledAt, setScheduledAt,

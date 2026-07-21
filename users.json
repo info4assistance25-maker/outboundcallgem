@@ -1,51 +1,63 @@
 [
   {
     "username": "samuele",
-    "password": "Gem@2026!",
+    "password": "$2a$12$KaNu4i60w0solCSufkp9SunMPt.xs6OGGI0ErOCFv3.nfd7UIqpYK",
     "nome": "Samuele",
     "isAdmin": true,
     "canSchedule": true,
     "email": "sgalli@gemgroupsrls.it",
-    "telefono": "+393533266370"
+    "telefono": "+393533266370",
+    "twoFactorSecret": "7ODMPB3CH5V36H3A3MIMYQROPET3FWSB",
+    "twoFactorEnabled": true
   },
   {
     "username": "admin",
     "password": "GemAdmin1!",
     "nome": "Admin",
     "isAdmin": true,
-    "canSchedule": true
+    "canSchedule": true,
+    "twoFactorRequired": false
   },
   {
     "username": "stefano",
-    "password": "Gem@2026!",
+    "password": "$2a$12$6zkX4r2XbL.FSQtJ.eFfQed8yNfLxhijhLt0c5HeWkanufg7TPhUy",
     "nome": "Stefano",
     "canSchedule": true,
     "role": "Admin",
     "isAdmin": true,
     "email": "sferreri@gemgroupsrls.it",
-    "telefono": "+393202554975"
+    "telefono": "+393202554975",
+    "twoFactorSecret": "YS7P5PPPDXNQIOF36YLBWEUI33HJ6QQU",
+    "twoFactorEnabled": true
   },
   {
     "username": "emiliano",
-    "password": "Torino.1",
+    "password": "$2a$12$XTjmKTyi5VPQZ9FdUJypyuPRbM0EKAv7nudGxSCQOvRuMLbetdRSe",
     "nome": "Emiliano",
     "canSchedule": true,
     "role": "Admin",
     "isAdmin": true,
     "email": "ebattaglia@gemgroupsrls.it",
-    "telefono": ""
+    "telefono": "",
+    "twoFactorEnabled": false,
+    "twoFactorRequired": false,
+    "twoFactorSecret": "V62KL3PIQ3AEFZFP7P6T5ADNCEXTOMD6"
   },
   {
     "username": "miranda",
-    "password": "Torino.1",
+    "password": "$2a$12$up20os1J2LNBjoURcXa5..TGfDu6b1OuVVx5SVGrZZ0eBya3muHY.",
     "nome": "Miranda",
-    "canSchedule": true
+    "canSchedule": true,
+    "role": "Admin",
+    "isAdmin": true
   },
   {
     "username": "giovanni",
-    "password": "Torino.1",
+    "password": "$2a$12$PMj7rLGwaeunVw698shcTeTiFcZRLxQWsmjy7XiRX1I4Cp1cMp9oy",
     "nome": "Giovanni",
-    "canSchedule": true
+    "canSchedule": true,
+    "role": "Admin",
+    "isAdmin": true
   },
   {
     "username": "giulia",

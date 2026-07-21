@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useCampaign } from '../context/CampaignContext';
 import { GemLogo } from './Icons';
-import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck } from 'lucide-react';
+import { LogOut, Sun, Moon, Plus, List, Clock, User, LifeBuoy, BarChart2, Users, Phone, Menu, X, ChevronRight, CalendarCheck, Check, ShieldAlert, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Step1Upload, Step2Preview, Step3Settings } from './CampaignSteps';
 import { AppointmentPage } from './AppuntamentiSection';
@@ -12,8 +12,9 @@ import { AdminVoicebots } from './AdminVoicebots';
 import { SupportSection } from './SupportSection';
 import { StatsDashboard } from './StatsDashboard';
 import { ProfileSection } from './ProfileSection';
+import { CallResultsSection } from './CallResultsSection';
 
-type Tab = 'campaign' | 'appointments' | 'lists' | 'history' | 'profile' | 'support' | 'stats' | 'users' | 'voicebots';
+type Tab = 'campaign' | 'appointments' | 'lists' | 'history' | 'callresults' | 'profile' | 'support' | 'stats' | 'users' | 'voicebots';
 
 interface NavItem {
   id: Tab;
@@ -30,7 +31,7 @@ interface NavGroup {
   viewerOnly?: boolean;
 }
 
-const NAV_GROUPS = [
+const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Campagne',
     items: [
@@ -38,6 +39,7 @@ const NAV_GROUPS = [
       { id: 'appointments' as Tab, label: 'Conferma Appuntamenti', icon: CalendarCheck, viewerHidden: true },
       { id: 'lists' as Tab, label: 'Liste Salvate', icon: List, viewerHidden: true },
       { id: 'history' as Tab, label: 'Storico Chiamate', icon: Clock },
+      { id: 'callresults' as Tab, label: 'Esiti Voicebot', icon: Phone },
     ]
   },
   {
@@ -68,6 +70,7 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   appointments: { title: 'Conferma Appuntamenti', subtitle: 'Visualizza, importa e gestisci gli appuntamenti programmati per le campagne di richiamata.' },
   lists: { title: 'Liste Salvate', subtitle: 'Salva, gestisci o riutilizza le tue liste contatti precedentemente caricate.' },
   history: { title: 'Storico Chiamate', subtitle: 'Consulta lo storico delle campagne effettuate e scarica i report associati.' },
+  callresults: { title: 'Esiti Voicebot', subtitle: 'Esito, trascrizione e riassunto AI di ogni chiamata gestita dal voicebot.' },
   profile: { title: 'Il Mio Profilo', subtitle: 'Gestisci le tue informazioni di contatto e le impostazioni del tuo account.' },
   support: { title: 'Assistenza', subtitle: 'Invia una richiesta direttamente al nostro team tecnico o amministrativo.' },
   stats: { title: 'Statistiche', subtitle: 'Panoramica delle campagne, chiamate per operatore e log accessi.' },
@@ -75,13 +78,82 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   voicebots: { title: 'Gestione Voicebot', subtitle: 'Configura i voicebot disponibili sul centralino Wildix per le campagne.' },
 };
 
+function CampaignStepper() {
+  const { contacts, validContacts, selectedVoicebot } = useCampaign();
+  const steps = [
+    { n: 1, label: 'Carica', done: contacts.length > 0 },
+    { n: 2, label: 'Verifica', done: validContacts.length > 0 },
+    { n: 3, label: 'Imposta', done: !!selectedVoicebot },
+    { n: 4, label: 'Avvia', done: false },
+  ];
+  const current = steps.find(s => !s.done)?.n ?? 4;
+  return (
+    <div className="mb-8 flex items-center">
+      {steps.map((s, i) => {
+        const state = s.done ? 'done' : s.n === current ? 'current' : 'todo';
+        return (
+          <React.Fragment key={s.n}>
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors",
+                state === 'done' && "bg-brand-600 text-white",
+                state === 'current' && "bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 ring-2 ring-brand-500",
+                state === 'todo' && "bg-slate-100 dark:bg-slate-800 text-slate-400"
+              )}>
+                {s.done ? <Check className="w-4 h-4" /> : s.n}
+              </div>
+              <span className={cn(
+                "text-sm font-semibold hidden sm:block transition-colors",
+                state === 'todo' ? "text-slate-400" : "text-slate-700 dark:text-slate-200"
+              )}>{s.label}</span>
+            </div>
+            {i < steps.length - 1 && (
+              <div className={cn("flex-1 h-0.5 mx-3 rounded-full transition-colors", s.done ? "bg-brand-500" : "bg-slate-200 dark:bg-slate-700")} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Dashboard() {
-  const { user, darkMode, toggleTheme, logout } = useCampaign();
+  const { user, darkMode, toggleTheme, logout, enable2FA } = useCampaign();
   const isAdmin = user?.isAdmin || user?.role === 'Admin';
   const isViewer = user?.role === 'Viewer';
   const savedTab = sessionStorage.getItem('gem_active_tab') as Tab | null;
   const [activeTab, setActiveTab] = useState<Tab>(savedTab || (isViewer ? 'history' : 'campaign'));
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [show2FABanner, setShow2FABanner] = useState(false);
+  const [enabling2FA, setEnabling2FA] = useState(false);
+
+  // Il valore di user.twoFactorEnabled può arrivare un istante dopo il mount
+  // (viene rinfrescato dal server per evitare di fidarsi di una sessione
+  // salvata potenzialmente non aggiornata), quindi il banner va ricalcolato
+  // ogni volta che cambia, non solo alla prima render.
+  React.useEffect(() => {
+    if (user && !user.twoFactorEnabled && sessionStorage.getItem('gem_2fa_banner_dismissed') !== '1') {
+      setShow2FABanner(true);
+    } else if (user?.twoFactorEnabled) {
+      setShow2FABanner(false);
+    }
+  }, [user?.twoFactorEnabled]);
+
+  const dismiss2FABanner = () => {
+    sessionStorage.setItem('gem_2fa_banner_dismissed', '1');
+    setShow2FABanner(false);
+  };
+
+  const handleEnable2FA = async () => {
+    setEnabling2FA(true);
+    const res = await enable2FA();
+    if (!res.ok) {
+      setEnabling2FA(false);
+      alert(res.error || 'Errore durante l\'attivazione del 2FA');
+    }
+    // Se ok, enable2FA() esegue già il logout: si torna alla schermata di
+    // login, dove al prossimo accesso comparirà il QR per il setup.
+  };
 
   const handleNav = (tab: Tab) => {
     setActiveTab(tab);
@@ -94,6 +166,21 @@ export function Dashboard() {
     const handler = (e: Event) => handleNav((e as CustomEvent).detail as Tab);
     window.addEventListener('gem:nav', handler);
     return () => window.removeEventListener('gem:nav', handler);
+  }, []);
+
+  // Titolo pagina dinamico
+  React.useEffect(() => {
+    const meta = TAB_META[activeTab];
+    document.title = meta ? `${meta.title} | GEM Outbound` : 'GEM Outbound';
+  }, [activeTab]);
+
+  // Shortcut tastiera: Esc chiude sidebar mobile
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   const meta = TAB_META[activeTab];
@@ -215,7 +302,7 @@ export function Dashboard() {
 
         {/* Page header */}
         <div className="px-6 lg:px-10 pt-8 pb-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 dark:text-white font-serif">
+          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
             {meta.title}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">{meta.subtitle}</p>
@@ -224,15 +311,41 @@ export function Dashboard() {
         {/* Content */}
         <main className="flex-1 px-6 lg:px-10 py-8">
 
-          {activeTab === 'campaign' && !isViewer && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <div className="space-y-6 lg:col-span-2">
-                <Step1Upload />
-                <Step2Preview />
-                <Step3Settings />
+          {show2FABanner && (
+            <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/10 animate-in fade-in slide-in-from-top-2">
+              <ShieldAlert className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Il tuo account non ha l'autenticazione a due fattori attiva</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Ti consigliamo di attivarla per proteggere meglio il tuo accesso. Ti verrà richiesto di rifare il login per completare la configurazione.</p>
               </div>
-              <div className="lg:col-span-1 lg:border-l border-slate-200 dark:border-slate-800/50 lg:pl-8">
-                <LaunchSidebar mode="launch" />
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleEnable2FA}
+                  disabled={enabling2FA}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-70"
+                >
+                  {enabling2FA && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {enabling2FA ? 'Attivazione...' : 'Attiva ora'}
+                </button>
+                <button onClick={dismiss2FABanner} className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'campaign' && !isViewer && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <CampaignStepper />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                <div className="space-y-6 lg:col-span-2">
+                  <Step1Upload />
+                  <Step2Preview />
+                  <Step3Settings />
+                </div>
+                <div className="lg:col-span-1 lg:border-l border-slate-200 dark:border-slate-800/50 lg:pl-8">
+                  <LaunchSidebar mode="launch" />
+                </div>
               </div>
             </div>
           )}
@@ -251,6 +364,10 @@ export function Dashboard() {
             <div className="max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-300">
               <LaunchSidebar mode="history" />
             </div>
+          )}
+
+          {activeTab === 'callresults' && (
+            <CallResultsSection />
           )}
 
           {activeTab === 'profile' && (

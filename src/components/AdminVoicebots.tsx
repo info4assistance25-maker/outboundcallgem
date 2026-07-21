@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, Save, X, Phone, CheckCircle2, AlertCircle, Toggle
 import { cn } from '../lib/utils';
 import { ConfirmModal } from './ConfirmModal';
 import { SkeletonRow, EmptyState } from './Skeleton';
+import { authFetch } from '../lib/authFetch';
 
 function FormRow({ label, field, placeholder, type = 'text', form, setForm }: any) {
   return (
@@ -52,7 +53,7 @@ export function AdminVoicebots() {
 
   const handleSaveNew = async () => {
     if (!form.nome || !form.exten || !form.context) return notify('err', 'Nome, interno e contesto sono obbligatori');
-    const res = await fetch('/api/voicebots', {
+    const res = await authFetch('/api/voicebots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...form, exten: parseInt(form.exten) })
@@ -63,34 +64,37 @@ export function AdminVoicebots() {
   };
 
   const handleSaveEdit = async (id: string) => {
-    const updated = { ...bots.find(b => b.id === id)!, ...form, exten: parseInt(form.exten), id };
+    if (!form.nome || !form.exten || !form.context) return notify('err', 'Nome, interno e contesto sono obbligatori');
+    const exten = parseInt(form.exten);
+    if (isNaN(exten)) return notify('err', 'Interno non valido');
+    const updated = { ...bots.find(b => b.id === id)!, ...form, exten, id };
     setBots(prev => prev.map(b => b.id === id ? updated : b));
     setEditId(null);
     notify('ok', 'Salvato');
-    loadVoicebots();
-    fetch(`/api/voicebots/${id}`, {
+    authFetch(`/api/voicebots/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updated)
     }).then(r => r.json()).then(data => {
       if (!data.ok) { notify('err', data.error || 'Errore salvataggio'); load(); }
-    }).catch(() => { notify('err', 'Errore di rete'); load(); });
+      loadVoicebots();
+    }).catch(() => { notify('err', 'Errore di rete'); load(); loadVoicebots(); });
   };
 
   const handleDelete = async (id: string) => {
     setBots(prev => prev.filter(b => b.id !== id));
     setConfirmDelete(null);
     notify('ok', 'Eliminato');
-    loadVoicebots();
-    fetch(`/api/voicebots/${id}`, { method: 'DELETE' }).catch(() => { notify('err', 'Errore eliminazione'); load(); });
+    authFetch(`/api/voicebots/${id}`, { method: 'DELETE' })
+      .then(() => loadVoicebots())
+      .catch(() => { notify('err', 'Errore eliminazione'); load(); loadVoicebots(); });
   };
 
   const handleToggle = async (bot: Voicebot) => {
     const nuovoStato = !bot.attivo;
     setBots(prev => prev.map(b => b.id === bot.id ? { ...b, attivo: nuovoStato } : b));
-    loadVoicebots();
     try {
-      const res = await fetch(`/api/voicebots/${bot.id}`, {
+      const res = await authFetch(`/api/voicebots/${bot.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...bot, attivo: nuovoStato })
@@ -105,6 +109,8 @@ export function AdminVoicebots() {
     } catch {
       setBots(prev => prev.map(b => b.id === bot.id ? { ...b, attivo: bot.attivo } : b));
       notify('err', 'Errore di rete');
+    } finally {
+      loadVoicebots();
     }
   };
 

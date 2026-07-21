@@ -15,6 +15,9 @@ export function ContactLists({ onSelectProcess }: { onSelectProcess: () => void 
   const [uploadMode, setUploadMode] = useState<'file' | 'manual'>('file');
   const [newListName, setNewListName] = useState('');
   const [tempContacts, setTempContacts] = useState<any[]>([]);
+  
+  // Stato per la modale di conferma eliminazione (Evita l'errore di riferimento)
+  const [confirmDeleteList, setConfirmDeleteList] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -252,7 +255,7 @@ export function ContactLists({ onSelectProcess }: { onSelectProcess: () => void 
         </div>
       )}
 
-      {lists.length === 0 ? (
+      {(lists || []).length === 0 ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft p-12 text-center">
           <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
             <List className="w-8 h-8 text-slate-400" />
@@ -274,7 +277,7 @@ export function ContactLists({ onSelectProcess }: { onSelectProcess: () => void 
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {lists.map((list) => (
+          {(lists || []).map((list) => (
             <div key={list.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft overflow-hidden group hover:border-brand-300 dark:hover:border-brand-700 transition-colors">
               <div className="p-6">
                 <div className="flex justify-between items-start mb-4">
@@ -295,9 +298,19 @@ export function ContactLists({ onSelectProcess }: { onSelectProcess: () => void 
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 truncate" title={list.name}>{list.name}</h3>
                 
                 <div className="flex items-center gap-4 text-xs font-medium text-slate-500 mb-6">
-                  <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> {list.contacts.length} contatti</span>
+                  <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> {(list.contacts || []).length} contatti</span>
                   <span>&bull;</span>
-                  <span>{format(new Date(list.createdAt), "d MMM yyyy", { locale: it })}</span>
+                  {/* Blocco Try/Catch in tempo reale per blindare la formattazione delle date */}
+                  <span>
+                    {(() => {
+                      try {
+                        if (!list.createdAt) return 'Data non definita';
+                        return format(new Date(list.createdAt), "d MMM yyyy", { locale: it });
+                      } catch (e) {
+                        return 'Data non valida';
+                      }
+                    })()}
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-5 mt-2">
@@ -321,6 +334,7 @@ export function ContactLists({ onSelectProcess }: { onSelectProcess: () => void 
         </div>
       )}
     </div>
+    
     <ConfirmModal
         open={!!confirmDeleteList}
         title="Elimina lista"
