@@ -1116,24 +1116,64 @@ app.post("/api/notify-campaign", async (req, res) => {
   });
   const ora = new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
   const pianificata = scheduledAt && new Date(scheduledAt).getTime() > Date.now();
-  const titolo = pianificata ? 'Campagna pianificata' : 'Campagna avviata';
+  const titolo = pianificata ? 'La tua campagna è pianificata.' : 'La tua campagna è partita.';
+  const nContatti = Number(count) || 0;
+  const contattiLabel = `${nContatti} ${nContatti === 1 ? 'contatto' : 'contatti'}`;
+  const appUrl = (process.env.APP_URL || 'https://outboundcallgem.vercel.app').replace(/\/$/, '');
+  const logoUrl = `${appUrl}/gem-logo-white.png`;
+  const quandoFrase = pianificata
+    ? `pianificata per ${escapeHtml(new Date(scheduledAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' }))}`
+    : `dalle ${ora}`;
+
+  const capRow = (icon: string, t: string, d: string, last = false) => {
+    const border = last ? '' : 'border-bottom:1px solid #eef1f6;';
+    return `<tr>
+      <td style="padding:16px 0;${border}vertical-align:middle;width:44px;"><img src="${appUrl}/${icon}" width="30" height="30" style="display:block;" alt="" /></td>
+      <td style="padding:16px 0 16px 14px;${border}vertical-align:middle;line-height:1.5;">
+        <strong style="color:#0f172a;font-size:15px;">${t}</strong><br>
+        <span style="color:#64748b;font-size:14px;">${d}</span></td></tr>`;
+  };
+
   try {
     await transporter.sendMail({
       from: `"GEM Campagne Out" <${process.env.SMTP_USER}>`,
       to,
-      subject: `📞 ${titolo} — ${escapeHtml(count)} contatti`,
+      subject: `${titolo} — ${contattiLabel}`,
       html: `
-        <h2>${titolo}</h2>
-        <p>Ciao ${escapeHtml(operatore)}, ecco il riepilogo della campagna che hai lanciato.</p>
-        <table style="border-collapse:collapse;font-family:sans-serif;font-size:14px">
-          <tr><td style="padding:4px 12px 4px 0"><strong>Contatti in campagna</strong></td><td>${escapeHtml(count)}</td></tr>
-          <tr><td style="padding:4px 12px 4px 0"><strong>Operatore</strong></td><td>${escapeHtml(operatore)}</td></tr>
-          <tr><td style="padding:4px 12px 4px 0"><strong>${pianificata ? 'Pianificata per' : 'Avviata alle'}</strong></td><td>${pianificata ? escapeHtml(new Date(scheduledAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })) : ora}</td></tr>
-          ${note ? `<tr><td style="padding:4px 12px 4px 0"><strong>Note</strong></td><td>${escapeHtml(note)}</td></tr>` : ''}
+      <div style="background:#e8ebf2;padding:24px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(6,8,18,0.12);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#1e3dc8 0%,#0a1a6b 55%,#060812 100%);padding:36px 40px 30px;text-align:center;">
+              <img src="${logoUrl}" width="115" style="display:inline-block;max-width:115px;height:auto;margin-bottom:16px;" alt="GEM Group" />
+              <div style="color:#ffffff;font-size:23px;font-weight:700;letter-spacing:-0.2px;line-height:1.25;">${titolo}</div>
+              <div style="color:#aeb9ee;font-size:15px;margin-top:6px;">Da qui in poi, ci pensa l'AI.</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:30px 40px 0;">
+              <p style="margin:0 0 22px;font-size:15px;color:#334155;line-height:1.6;">Ciao ${escapeHtml(operatore)}, la campagna outbound è stata avviata. Gli assistenti vocali GEM stanno contattando i tuoi clienti — <strong style="color:#0f172a;">${escapeHtml(contattiLabel)}</strong>, ${quandoFrase}. Ogni chiamata viene poi elaborata così, in automatico:</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${capRow('icon-phone.png', 'Chiamate vocali AI', 'Il voicebot conduce ogni conversazione in modo naturale.')}
+                ${capRow('icon-doc.png', 'Trascrizione e riassunto', 'Ogni chiamata diventa testo, con sintesi AI dei punti chiave.')}
+                ${capRow('icon-bell.png', 'Follow-up automatici', 'Se un cliente va richiamato, ricevi subito un avviso.', true)}
+              </table>
+              ${note ? `<p style="margin:20px 0 0;font-size:14px;color:#475569;"><strong style="color:#0f172a;">Note:</strong> ${escapeHtml(note)}</p>` : ''}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 40px 36px;text-align:center;">
+              <a href="${appUrl}" style="display:inline-block;background:#1e3dc8;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:15px 40px;border-radius:9px;box-shadow:0 2px 8px rgba(30,61,200,0.3);">Segui gli esiti in tempo reale</a>
+              <p style="margin:15px 0 0;font-size:13px;color:#94a3b8;">Risposte, trascrizioni e follow-up compaiono nella dashboard man mano che arrivano.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#060812;padding:22px 40px;text-align:center;">
+              <div style="color:#ffffff;font-size:14px;font-weight:600;margin-bottom:3px;">GEM Group</div>
+              <div style="color:#6b7699;font-size:12px;line-height:1.6;">Soluzioni di comunicazione e automazione AI su tecnologia Wildix</div>
+            </td>
+          </tr>
         </table>
-        <p style="color:#667;font-size:13px;margin-top:16px">
-          Gli esiti delle singole chiamate (risposte, trascrizioni, follow-up) sono consultabili nella dashboard di GEM Outbound man mano che arrivano.
-        </p>
+      </div>
       `,
     });
     res.json({ ok: true });
