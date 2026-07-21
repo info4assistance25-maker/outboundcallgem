@@ -12,11 +12,12 @@
   },
   {
     "username": "admin",
-    "password": "GemAdmin1!",
+    "password": "$2a$12$u3Ioqe0sdasaC1sHBIBgUepMacgbiO91dwmJKNFhB17TfYVERTgpq",
     "nome": "Admin",
     "isAdmin": true,
     "canSchedule": true,
-    "twoFactorRequired": false
+    "twoFactorRequired": false,
+    "role": "Admin"
   },
   {
     "username": "stefano",
