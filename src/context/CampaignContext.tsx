@@ -518,7 +518,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
         saveHistory(validContacts.length, targetAt, concurrency, validContacts.map(c => ({...c})));
         setCampaignNote('');
         // Notifica email completamento (fire and forget)
-        fetch('/api/notify-campaign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operatore: user?.nome, count: validContacts.length, scheduledAt: targetAt, note: campaignNote || undefined }) }).catch(() => {});
+        fetch('/api/notify-campaign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operatore: user?.nome, count: validContacts.length, scheduledAt: targetAt, note: campaignNote || undefined, userEmail: user?.email || undefined }) }).catch(() => {});
         // Registra numero → nome, per mostrare il nome reale del contatto negli Esiti Voicebot
         fetch('/api/register-campaign-contacts', {
           method: 'POST',
