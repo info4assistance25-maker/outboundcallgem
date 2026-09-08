@@ -38,5 +38,13 @@
     "context": "outbound-voicebot",
     "descrizione": "demo",
     "attivo": true
+  },
+  {
+    "id": "vb1788874804666",
+    "nome": "Demo Safe Assicurazioni",
+    "exten": 7070,
+    "context": "outbound-voicebot",
+    "descrizione": "",
+    "attivo": true
   }
 ]
