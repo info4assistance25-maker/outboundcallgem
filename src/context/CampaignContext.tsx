@@ -428,11 +428,16 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   const SUPPORT_HINT = ' — Vai in Assistenza per aprire un ticket.';
 
+  // Webhook Make che avviano le chiamate sul centralino. Sovrascrivibili per
+  // istanza (es. un secondo deploy collegato a un altro PBX).
+  const WEBHOOK_STANDARD = import.meta.env.VITE_MAKE_WEBHOOK_STANDARD || 'https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo';
+  const WEBHOOK_APPUNTAMENTI = import.meta.env.VITE_MAKE_WEBHOOK_APPUNTAMENTI || 'https://hook.eu1.make.com/9f7h1ebgktojphmiulyqte4ux7f3tjqv';
+
   // Test single call
   const testSingleCall = async (contact: Contact) => {
     setTestStatus({ type: 'load', msg: `Test chiamata a ${contact.nome} (${contact.numero})...` });
     try {
-      const res = await fetch('https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo', {
+      const res = await fetch(WEBHOOK_STANDARD, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -480,8 +485,8 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const WEBHOOK_URL = campaignType === 'appuntamenti'
-        ? 'https://hook.eu1.make.com/9f7h1ebgktojphmiulyqte4ux7f3tjqv'
-        : 'https://hook.eu1.make.com/ac3icgiyh1nbvvh463w33qh58uenvfgo';
+        ? WEBHOOK_APPUNTAMENTI
+        : WEBHOOK_STANDARD;
 
       const results = await Promise.all(chunks.map((chunk, idx) =>
         fetch(WEBHOOK_URL, {

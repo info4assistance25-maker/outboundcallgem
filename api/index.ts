@@ -511,9 +511,11 @@ app.get("/api/call-results", requireAuth, async (req, res) => {
 app.use(express.json());
 
 const USERS_FILE = path.join(process.cwd(), "users.json");
-const GITHUB_REPO = "info4assistance25-maker/outboundcallgem";
-const GITHUB_FILE_PATH = "users.json";
-const VOICEBOTS_FILE_PATH = "voicebots.json";
+// Repo e percorsi dove sono persistiti utenti e voicebot. Sovrascrivibili per
+// istanza, così un secondo deploy non condivide utenti/voicebot con il primo.
+const GITHUB_REPO = process.env.GITHUB_REPO || "info4assistance25-maker/outboundcallgem";
+const GITHUB_FILE_PATH = process.env.GITHUB_USERS_PATH || "users.json";
+const VOICEBOTS_FILE_PATH = process.env.GITHUB_VOICEBOTS_PATH || "voicebots.json";
 const VOICEBOTS_LOCAL = path.join(process.cwd(), "voicebots.json");
 
 async function readVoicebots() {
