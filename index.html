@@ -21,5 +21,22 @@
         });
       }
     </script>
+    <!-- Widget chat assistenza Wildix Kite (AssistenzaChatbot) -->
+    <script>
+      (function(d,t) {
+        var BASE_URL='https://app.x-bees.com';
+        var e=d.createElement(t),s=d.getElementsByTagName(t)[0];
+        e.src=BASE_URL+'/kite/widget.js';
+        e.defer=true;
+        e.async=true;
+        s.parentNode.insertBefore(e, s);
+        e.onload=function(){
+          window.wxSDK.run({
+            kiteId: 'quuqlfkb',
+            baseUrl: BASE_URL,
+          });
+        };
+      })(document,'script');
+    </script>
   </body>
 </html>
